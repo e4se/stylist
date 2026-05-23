@@ -13,6 +13,7 @@ import type { Auth } from '@/types';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 const fallbackLocale = import.meta.env.VITE_APP_FALLBACK_LOCALE || 'en';
+const translationFiles = import.meta.glob('/lang/*.json', { eager: true });
 
 type SharedPageProps = {
     auth?: Auth;
@@ -42,7 +43,7 @@ createInertiaApp<SharedPageProps>({
                     <LaravelReactI18nProvider
                         locale={initialLocale}
                         fallbackLocale={fallbackLocale}
-                        files={import.meta.glob('/lang/*.json')}
+                        files={translationFiles}
                     >
                         <App {...props} />
                     </LaravelReactI18nProvider>
