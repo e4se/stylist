@@ -1,6 +1,7 @@
 import type { UrlMethodPair } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import { usePasskeyVerify } from '@laravel/passkeys/react';
+import { useLaravelReactI18n } from 'laravel-react-i18n';
 import { KeyRound } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ export default function PasskeyVerify({
     loadingLabel,
     separator,
 }: Props = {}) {
+    const { t } = useLaravelReactI18n();
     const { verify, isLoading, error, isSupported } = usePasskeyVerify({
         ...(routes && {
             routes: {
@@ -51,8 +53,8 @@ export default function PasskeyVerify({
                 >
                     {isLoading ? <Spinner /> : <KeyRound className="h-4 w-4" />}
                     {isLoading
-                        ? (loadingLabel ?? 'Authenticating...')
-                        : (label ?? 'Sign in with a passkey')}
+                        ? t(loadingLabel ?? 'Authenticating...')
+                        : t(label ?? 'Sign in with a passkey')}
                 </Button>
                 {error && (
                     <InputError message={error} className="text-center" />
@@ -65,7 +67,7 @@ export default function PasskeyVerify({
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
                     <span className="bg-background px-2 text-muted-foreground">
-                        {separator ?? 'Or continue with email'}
+                        {t(separator ?? 'Or continue with email')}
                     </span>
                 </div>
             </div>
