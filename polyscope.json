@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "setup": ["herd link", "herd secure", "npm ci"],
+    "run": [{ "label": "Start Vite", "command": "npm run dev", "autostart": true }],
+    "archive": ["herd unsecure", "herd unlink"]
+  },
+  "runMode": "replace",
+  "preview": { "url": "https://{{folder}}.test" }
+}
