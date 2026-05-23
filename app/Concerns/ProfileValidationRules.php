@@ -13,12 +13,18 @@ trait ProfileValidationRules
      *
      * @return array<string, array<int, ValidationRule|array<mixed>|string>>
      */
-    protected function profileRules(?int $userId = null): array
+    protected function profileRules(?int $userId = null, bool $includeLocale = false): array
     {
-        return [
+        $rules = [
             'name' => $this->nameRules(),
             'email' => $this->emailRules($userId),
         ];
+
+        if ($includeLocale) {
+            $rules['locale'] = $this->localeRules();
+        }
+
+        return $rules;
     }
 
     /**
@@ -47,5 +53,21 @@ trait ProfileValidationRules
                 ? Rule::unique(User::class)
                 : Rule::unique(User::class)->ignore($userId),
         ];
+    }
+
+    /**
+     * Get the validation rules used to validate user locales.
+     *
+     * @return array<int, ValidationRule|array<mixed>|string>
+     */
+    protected function localeRules(): array
+    {
+        $supportedLocales = config('app.supported_locales', ['en']);
+
+        if (! is_array($supportedLocales)) {
+            $supportedLocales = ['en'];
+        }
+
+        return ['required', 'string', Rule::in($supportedLocales)];
     }
 }

@@ -80,7 +80,7 @@ class SecurityTest extends TestCase
 
     public function test_password_can_be_updated()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['locale' => 'ru']);
 
         $response = $this
             ->actingAs($user)
@@ -93,7 +93,8 @@ class SecurityTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('security.edit'));
+            ->assertRedirect(route('security.edit'))
+            ->assertInertiaFlash('toast.message', 'Пароль обновлен.');
 
         $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
     }
