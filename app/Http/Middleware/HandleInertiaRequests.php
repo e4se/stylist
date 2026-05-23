@@ -24,7 +24,8 @@ class HandleInertiaRequests extends Middleware
     public function version(Request $request): ?string
     {
         $assetVersion = parent::version($request) ?? 'static';
-        $locale = $request->user()?->locale ?? config('app.locale');
+        $user = $request->user();
+        $locale = $user ? $user->locale : config('app.locale');
 
         return "{$assetVersion}:{$locale}";
     }
