@@ -1,4 +1,4 @@
-import { usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { useLaravelReactI18n } from 'laravel-react-i18n';
 import { useEffect } from 'react';
 
@@ -7,6 +7,7 @@ import type { Auth, BreadcrumbItem } from '@/types';
 
 type PageProps = {
     auth?: Auth;
+    breadcrumbs?: BreadcrumbItem[];
 };
 
 export default function AppLayout({
@@ -16,8 +17,12 @@ export default function AppLayout({
     breadcrumbs?: BreadcrumbItem[];
     children: React.ReactNode;
 }) {
-    const { auth } = usePage<PageProps>().props;
+    const { auth, breadcrumbs: sharedBreadcrumbs } = usePage<PageProps>().props;
     const { currentLocale, setLocale } = useLaravelReactI18n();
+    const resolvedBreadcrumbs = sharedBreadcrumbs ?? breadcrumbs;
+    const currentBreadcrumb =
+        resolvedBreadcrumbs.find((breadcrumb) => breadcrumb.current) ??
+        resolvedBreadcrumbs.at(-1);
 
     useEffect(() => {
         const locale = auth?.user?.locale;
@@ -28,8 +33,11 @@ export default function AppLayout({
     }, [auth?.user?.locale, currentLocale, setLocale]);
 
     return (
-        <AppLayoutTemplate breadcrumbs={breadcrumbs}>
-            {children}
-        </AppLayoutTemplate>
+        <>
+            {currentBreadcrumb && <Head title={currentBreadcrumb.title} />}
+            <AppLayoutTemplate breadcrumbs={resolvedBreadcrumbs}>
+                {children}
+            </AppLayoutTemplate>
+        </>
     );
 }

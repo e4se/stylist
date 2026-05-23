@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import { useLaravelReactI18n } from 'laravel-react-i18n';
 import { useRef } from 'react';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
@@ -11,7 +11,6 @@ import ManageTwoFactor from '@/components/manage-two-factor';
 import PasswordInput from '@/components/password-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { edit } from '@/routes/security';
 
 type Props = {
     passwordRules: string;
@@ -25,8 +24,6 @@ export default function Security(props: Props) {
 
     return (
         <>
-            <Head title={t('Security settings')} />
-
             <h1 className="sr-only">{t('Security settings')}</h1>
 
             <div className="space-y-6">
@@ -142,12 +139,3 @@ export default function Security(props: Props) {
         </>
     );
 }
-
-Security.layout = {
-    breadcrumbs: [
-        {
-            title: 'Security settings',
-            href: edit(),
-        },
-    ],
-};
