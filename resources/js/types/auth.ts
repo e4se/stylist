@@ -15,6 +15,10 @@ export type User = {
 
 export type Auth = {
     user: User;
+    can: {
+        viewHorizon: boolean;
+        viewTelescope: boolean;
+    };
 };
 
 /* @chisel-passkeys */
