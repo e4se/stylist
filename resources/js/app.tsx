@@ -12,6 +12,7 @@ import SettingsLayout from '@/layouts/settings/layout';
 import type { Auth } from '@/types';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const fallbackLocale = import.meta.env.VITE_APP_FALLBACK_LOCALE || 'en';
 
 type SharedPageProps = {
     auth?: Auth;
@@ -34,13 +35,13 @@ createInertiaApp<SharedPageProps>({
     },
     setup({ el, App, props }) {
         const initialLocale =
-            props.initialPage.props.auth?.user?.locale ?? 'en';
+            props.initialPage.props.auth?.user?.locale ?? fallbackLocale;
         const app = (
             <StrictMode>
                 <TooltipProvider delayDuration={0}>
                     <LaravelReactI18nProvider
                         locale={initialLocale}
-                        fallbackLocale="en"
+                        fallbackLocale={fallbackLocale}
                         files={import.meta.glob('/lang/*.json')}
                     >
                         <App {...props} />

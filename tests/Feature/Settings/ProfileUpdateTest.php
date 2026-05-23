@@ -4,6 +4,7 @@ namespace Tests\Feature\Settings;
 
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -84,6 +85,14 @@ class ProfileUpdateTest extends TestCase
             ->assertOk();
 
         $this->assertSame('ru', app()->getLocale());
+    }
+
+    public function test_user_preferred_locale_uses_the_stored_locale(): void
+    {
+        $user = User::factory()->create(['locale' => 'ru']);
+
+        $this->assertInstanceOf(HasLocalePreference::class, $user);
+        $this->assertSame('ru', $user->preferredLocale());
     }
 
     public function test_inertia_version_includes_the_authenticated_users_locale(): void

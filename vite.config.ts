@@ -33,4 +33,7 @@ export default defineConfig({
     resolve: {
         dedupe: ['react', 'react-dom'],
     },
+    ssr: {
+        noExternal: ['laravel-react-i18n'],
+    },
 });
