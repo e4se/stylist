@@ -1,4 +1,4 @@
-import { Form, Head, Link, usePage } from '@inertiajs/react';
+import { Form, Link, usePage } from '@inertiajs/react';
 import { useLaravelReactI18n } from 'laravel-react-i18n';
 
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
@@ -15,7 +15,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { edit } from '@/routes/profile';
 import { send } from '@/routes/verification';
 import type { Auth, Locale } from '@/types';
 
@@ -40,8 +39,6 @@ export default function Profile({
 
     return (
         <>
-            <Head title={t('Profile settings')} />
-
             <h1 className="sr-only">{t('Profile settings')}</h1>
 
             <div className="space-y-6">
@@ -190,12 +187,3 @@ export default function Profile({
         </>
     );
 }
-
-Profile.layout = {
-    breadcrumbs: [
-        {
-            title: 'Profile settings',
-            href: edit(),
-        },
-    ],
-};
