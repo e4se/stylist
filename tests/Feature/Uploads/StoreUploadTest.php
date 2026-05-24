@@ -42,6 +42,23 @@ class StoreUploadTest extends TestCase
         $this->assertSame($file->getMimeType(), $upload->mime_type);
     }
 
+    public function test_it_limits_overlong_original_filenames_before_persisting(): void
+    {
+        config(['filesystems.default' => 'local']);
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $filename = str_repeat('a', 252).'.txt';
+        $file = UploadedFile::fake()->create($filename, 4, 'text/plain');
+
+        $upload = app(StoreUpload::class)->execute($user, $file);
+
+        $this->assertModelExists($upload);
+        $this->assertSame(255, mb_strlen($upload->name));
+        $this->assertSame('txt', $upload->extension);
+        Storage::disk('local')->assertExists($upload->path);
+    }
+
     public function test_it_deletes_the_stored_file_when_metadata_persistence_fails(): void
     {
         config(['filesystems.default' => 'local']);

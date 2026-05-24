@@ -114,6 +114,25 @@ class ItemAuthorizationRequestTest extends TestCase
             ->assertJsonValidationErrors('name');
     }
 
+    public function test_item_requests_reject_overlong_names(): void
+    {
+        $user = User::factory()->create();
+        $item = Item::factory()->for($user)->create();
+        $name = str_repeat('a', StoreItemRequest::NAME_MAX_CHARACTERS + 1);
+
+        $this
+            ->actingAs($user)
+            ->postItem(['name' => $name])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+
+        $this
+            ->actingAs($user)
+            ->putItem($item, ['name' => $name])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+    }
+
     public function test_item_requests_reject_invalid_main_upload_files(): void
     {
         $user = User::factory()->create();
@@ -133,6 +152,29 @@ class ItemAuthorizationRequestTest extends TestCase
                 'main_upload' => UploadedFile::fake()
                     ->image('jacket.jpg')
                     ->size(UpdateItemRequest::MAIN_UPLOAD_MAX_KILOBYTES + 1),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('main_upload');
+    }
+
+    public function test_item_requests_reject_overlong_main_upload_filenames(): void
+    {
+        $user = User::factory()->create();
+        $item = Item::factory()->for($user)->create();
+        $filename = str_repeat('a', StoreItemRequest::MAIN_UPLOAD_NAME_MAX_CHARACTERS - 3).'.jpg';
+
+        $this
+            ->actingAs($user)
+            ->postItem([
+                'main_upload' => UploadedFile::fake()->image($filename),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('main_upload');
+
+        $this
+            ->actingAs($user)
+            ->putItem($item, [
+                'main_upload' => UploadedFile::fake()->image($filename),
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('main_upload');

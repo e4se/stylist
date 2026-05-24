@@ -9,6 +9,7 @@ return [
     'required' => 'Поле :attribute обязательно для заполнения.',
     'string' => 'Поле :attribute должно быть строкой.',
     'unique' => 'Такое значение поля :attribute уже существует.',
+    'upload_filename_max' => 'Имя файла не может быть длиннее :max символов.',
 
     'attributes' => [
         'email' => 'электронная почта',

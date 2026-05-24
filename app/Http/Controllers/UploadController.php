@@ -10,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 
 class UploadController extends Controller
 {
@@ -25,13 +24,9 @@ class UploadController extends Controller
 
         /** @var User $user */
         $user = $request->user();
-        $file = $request->file('file');
 
-        if (! $file instanceof UploadedFile) {
-            throw ValidationException::withMessages([
-                'file' => __('The file field is required.'),
-            ]);
-        }
+        /** @var UploadedFile $file */
+        $file = $request->file('file');
 
         $upload = $this->storeUpload->execute($user, $file);
         $upload->setAttribute('url', $this->uploadUrl($upload));

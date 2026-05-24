@@ -82,4 +82,26 @@ class UploadControllerTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('file');
     }
+
+    public function test_upload_store_rejects_overlong_original_filenames(): void
+    {
+        config(['filesystems.default' => 'local']);
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $filename = str_repeat('a', StoreUploadRequest::FILE_NAME_MAX_CHARACTERS - 3).'.jpg';
+
+        $this
+            ->actingAs($user)
+            ->post(route('uploads.store'), [
+                'file' => UploadedFile::fake()->image($filename),
+            ], [
+                'Accept' => 'application/json',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('file');
+
+        $this->assertSame(0, Upload::count());
+        $this->assertSame([], Storage::disk('local')->allFiles('uploads'));
+    }
 }
