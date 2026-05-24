@@ -7,6 +7,10 @@ Breadcrumbs::for('dashboard', function (BreadcrumbTrail $trail): void {
     $trail->push(__('Dashboard'), route('dashboard'));
 });
 
+Breadcrumbs::for('wardrobe.index', function (BreadcrumbTrail $trail): void {
+    $trail->push(__('Wardrobe'), route('wardrobe.index'));
+});
+
 Breadcrumbs::for('settings', function (BreadcrumbTrail $trail): void {
     $trail->push(__('Settings'), route('settings.index'));
 });
