@@ -4,9 +4,11 @@ namespace Tests\Feature\Roles;
 
 use App\Enums\Role;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class RoleTest extends TestCase
@@ -21,6 +23,19 @@ class RoleTest extends TestCase
             'name' => Role::Admin->value,
             'guard_name' => 'web',
         ]);
+    }
+
+    public function test_database_seeder_creates_alexander_as_admin(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $user = User::query()
+            ->where('email', 'e4se96@gmail.com')
+            ->firstOrFail();
+
+        $this->assertSame('Alexander', $user->name);
+        $this->assertTrue(Hash::check('12798841', $user->password));
+        $this->assertTrue($user->hasRole(Role::Admin));
     }
 
     public function test_admin_role_grants_all_gate_checks(): void
