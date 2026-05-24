@@ -15,7 +15,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -30,9 +29,10 @@ class ItemController extends Controller
      */
     public function index(Request $request): Response
     {
-        Gate::authorize('viewAny', Item::class);
+        $this->authorize('viewAny', Item::class);
 
-        $user = $this->authenticatedUser($request);
+        /** @var User $user */
+        $user = $request->user();
         $items = $user->items()
             ->with('mainUpload')
             ->latest()
@@ -49,16 +49,19 @@ class ItemController extends Controller
      */
     public function store(StoreItemRequest $request): RedirectResponse
     {
-        $user = $this->authenticatedUser($request);
+        $this->authorize('create', Item::class);
+
+        /** @var User $user */
+        $user = $request->user();
         $storedUpload = null;
 
         try {
             DB::transaction(function () use ($request, $user, &$storedUpload): void {
                 $item = $user->items()->create($this->itemAttributes($request));
-                $storedUpload = $this->storeMainUpload($request, $user);
+                $mainUpload = $this->mainUpload($request, $user, $storedUpload);
 
-                if ($storedUpload instanceof Upload) {
-                    $this->replaceMainUpload($item, $storedUpload);
+                if ($mainUpload instanceof Upload) {
+                    $this->replaceMainUpload($item, $mainUpload);
                 }
             });
         } catch (Throwable $exception) {
@@ -75,16 +78,19 @@ class ItemController extends Controller
      */
     public function update(UpdateItemRequest $request, Item $item): RedirectResponse
     {
-        $user = $this->authenticatedUser($request);
+        $this->authorize('update', $item);
+
+        /** @var User $user */
+        $user = $request->user();
         $storedUpload = null;
 
         try {
             DB::transaction(function () use ($request, $item, $user, &$storedUpload): void {
                 $item->update($this->itemAttributes($request));
-                $storedUpload = $this->storeMainUpload($request, $user);
+                $mainUpload = $this->mainUpload($request, $user, $storedUpload);
 
-                if ($storedUpload instanceof Upload) {
-                    $this->replaceMainUpload($item, $storedUpload);
+                if ($mainUpload instanceof Upload) {
+                    $this->replaceMainUpload($item, $mainUpload);
                 }
             });
         } catch (Throwable $exception) {
@@ -101,7 +107,7 @@ class ItemController extends Controller
      */
     public function destroy(Item $item): RedirectResponse
     {
-        Gate::authorize('delete', $item);
+        $this->authorize('delete', $item);
 
         $item->delete();
 
@@ -122,6 +128,35 @@ class ItemController extends Controller
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
         ];
+    }
+
+    private function mainUpload(StoreItemRequest|UpdateItemRequest $request, User $user, ?Upload &$storedUpload): ?Upload
+    {
+        $selectedUpload = $this->selectedMainUpload($request, $user);
+
+        if ($selectedUpload instanceof Upload) {
+            return $selectedUpload;
+        }
+
+        $storedUpload = $this->storeMainUpload($request, $user);
+
+        return $storedUpload;
+    }
+
+    private function selectedMainUpload(StoreItemRequest|UpdateItemRequest $request, User $user): ?Upload
+    {
+        /** @var array{main_upload_id?: string|null} $validated */
+        $validated = $request->validated();
+        $uploadId = $validated['main_upload_id'] ?? null;
+
+        if (! is_string($uploadId) || $uploadId === '') {
+            return null;
+        }
+
+        return Upload::query()
+            ->whereBelongsTo($user)
+            ->whereKey($uploadId)
+            ->firstOrFail();
     }
 
     private function storeMainUpload(StoreItemRequest|UpdateItemRequest $request, User $user): ?Upload
@@ -193,14 +228,5 @@ class ItemController extends Controller
                 ->where('path', $path)
                 ->delete();
         }
-    }
-
-    private function authenticatedUser(Request $request): User
-    {
-        $user = $request->user();
-
-        assert($user instanceof User);
-
-        return $user;
     }
 }

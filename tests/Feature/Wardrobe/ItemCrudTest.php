@@ -118,6 +118,37 @@ class ItemCrudTest extends TestCase
         ]);
     }
 
+    public function test_an_item_can_be_created_with_a_previously_uploaded_main_image(): void
+    {
+        config(['filesystems.default' => 'local']);
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $upload = Upload::factory()->for($user)->create([
+            'name' => 'linen-shirt.jpg',
+            'disk' => 'local',
+            'driver' => 'local',
+            'path' => 'uploads/linen-shirt.jpg',
+        ]);
+        Storage::disk('local')->put($upload->path, 'image');
+
+        $this
+            ->actingAs($user)
+            ->post(route('wardrobe.items.store'), [
+                'name' => 'Linen shirt',
+                'description' => 'Lightweight summer layer.',
+                'main_upload_id' => $upload->id,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('wardrobe.index'));
+
+        $item = $user->items()->sole();
+
+        $this->assertTrue($item->mainUpload()->whereKey($upload->id)->exists());
+        $this->assertTrue($upload->items()->whereKey($item->id)->exists());
+        Storage::disk('local')->assertExists($upload->path);
+    }
+
     public function test_an_item_can_be_updated_and_its_main_image_can_be_replaced(): void
     {
         config(['filesystems.default' => 'local']);
@@ -158,6 +189,77 @@ class ItemCrudTest extends TestCase
         $this->assertModelExists($oldUpload);
         Storage::disk('local')->assertExists($oldUpload->path);
         Storage::disk('local')->assertExists($newUpload->path);
+    }
+
+    public function test_an_item_main_image_can_be_replaced_with_a_previously_uploaded_image(): void
+    {
+        config(['filesystems.default' => 'local']);
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $item = Item::factory()->for($user)->create([
+            'name' => 'Old jacket',
+            'description' => 'Original description.',
+        ]);
+        $oldUpload = Upload::factory()->for($user)->create([
+            'disk' => 'local',
+            'driver' => 'local',
+            'path' => 'uploads/old-jacket.jpg',
+        ]);
+        $newUpload = Upload::factory()->for($user)->create([
+            'name' => 'updated-jacket.jpg',
+            'disk' => 'local',
+            'driver' => 'local',
+            'path' => 'uploads/updated-jacket.jpg',
+        ]);
+        Storage::disk('local')->put($oldUpload->path, 'old image');
+        Storage::disk('local')->put($newUpload->path, 'new image');
+        $item->mainUpload()->attach($oldUpload);
+
+        $this
+            ->actingAs($user)
+            ->patch(route('wardrobe.items.update', $item), [
+                'name' => 'Updated jacket',
+                'description' => 'Updated description.',
+                'main_upload_id' => $newUpload->id,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('wardrobe.index'));
+
+        $item->refresh();
+
+        $this->assertSame('Updated jacket', $item->name);
+        $this->assertSame('Updated description.', $item->description);
+        $this->assertFalse($item->uploads()->whereKey($oldUpload->id)->exists());
+        $this->assertTrue($item->mainUpload()->whereKey($newUpload->id)->exists());
+        $this->assertTrue($newUpload->items()->whereKey($item->id)->exists());
+        Storage::disk('local')->assertExists($oldUpload->path);
+        Storage::disk('local')->assertExists($newUpload->path);
+    }
+
+    public function test_an_item_cannot_use_another_users_uploaded_image(): void
+    {
+        config(['filesystems.default' => 'local']);
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $upload = Upload::factory()->for($otherUser)->create([
+            'disk' => 'local',
+            'driver' => 'local',
+            'path' => 'uploads/other-user-jacket.jpg',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('wardrobe.items.store'), [
+                'name' => 'Borrowed jacket',
+                'description' => null,
+                'main_upload_id' => $upload->id,
+            ])
+            ->assertSessionHasErrors('main_upload_id');
+
+        $this->assertSame(0, $user->items()->count());
     }
 
     public function test_non_owners_cannot_update_or_delete_items(): void

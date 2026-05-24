@@ -3,9 +3,11 @@
 namespace App\Http\Requests\Items;
 
 use App\Models\Item;
-use Illuminate\Contracts\Validation\ValidationRule;
+use App\Models\Upload;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\File;
 
 class StoreItemRequest extends FormRequest
@@ -26,7 +28,7 @@ class StoreItemRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, ValidationRule|array<mixed>|string>
+     * @return array<string, mixed>
      */
     public function rules(): array
     {
@@ -34,6 +36,12 @@ class StoreItemRequest extends FormRequest
             'name' => ['required', 'string'],
             'description' => ['nullable', 'string'],
             'main_upload' => ['nullable', File::image()->max(self::MAIN_UPLOAD_MAX_KILOBYTES)],
+            'main_upload_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists((new Upload)->getTable(), 'id')
+                    ->where(fn (Builder $query): Builder => $query->where('user_id', $this->user()?->getAuthIdentifier())),
+            ],
         ];
     }
 }

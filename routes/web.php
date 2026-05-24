@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\UploadController;
 use App\Http\Controllers\Wardrobe\ItemController;
 use Illuminate\Support\Facades\Route;
 
@@ -7,6 +8,8 @@ Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    Route::post('uploads', [UploadController::class, 'store'])->name('uploads.store');
 
     Route::get('wardrobe', [ItemController::class, 'index'])->name('wardrobe.index');
     Route::post('wardrobe/items', [ItemController::class, 'store'])->name('wardrobe.items.store');

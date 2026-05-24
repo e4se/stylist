@@ -1,8 +1,19 @@
-import { Form, InfiniteScroll } from '@inertiajs/react';
+import { Form, InfiniteScroll, useHttp } from '@inertiajs/react';
 import { useLaravelReactI18n } from 'laravel-react-i18n';
-import { ImageIcon, Pencil, Plus, Shirt, Trash2 } from 'lucide-react';
+import {
+    CheckCircle2,
+    ImageIcon,
+    ImagePlus,
+    Loader2,
+    Pencil,
+    Plus,
+    Shirt,
+    Trash2,
+} from 'lucide-react';
+import type { ChangeEvent } from 'react';
 import { useState } from 'react';
 
+import UploadController from '@/actions/App/Http/Controllers/UploadController';
 import ItemController from '@/actions/App/Http/Controllers/Wardrobe/ItemController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -22,6 +33,7 @@ import { Label } from '@/components/ui/label';
 import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 type WardrobeUpload = {
     id: string;
@@ -44,10 +56,20 @@ type WardrobeItemFormData = {
     name: string;
     description: string;
     main_upload: File | null;
+    main_upload_id: string;
+};
+
+type WardrobeUploadFormData = {
+    file: File | null;
+};
+
+type StoredWardrobeUpload = WardrobeUpload & {
+    size: number;
+    mime_type: string | null;
 };
 
 type WardrobeItemFormErrors = Partial<
-    Record<keyof WardrobeItemFormData, string>
+    Record<keyof WardrobeItemFormData | 'main_upload', string>
 >;
 
 type UploadProgress = {
@@ -203,9 +225,40 @@ function WardrobeItemForm({
 }) {
     const { t } = useLaravelReactI18n();
     const isEditing = item !== undefined;
+    const [mainUpload, setMainUpload] = useState<WardrobeUpload | null>(
+        item?.main_upload[0] ?? null,
+    );
+    const upload = useHttp<WardrobeUploadFormData, StoredWardrobeUpload>({
+        file: null,
+    });
     const form = isEditing
         ? ItemController.update.form.put(item.id)
         : ItemController.store.form.post();
+
+    const uploadMainImage = async (file: File | null) => {
+        if (!file) {
+            return;
+        }
+
+        upload.clearErrors('file');
+        upload.setData('file', file);
+        upload.transform(() => ({ file }));
+
+        try {
+            const storedUpload = await upload.post(
+                UploadController.store.url(),
+            );
+
+            setMainUpload({
+                id: storedUpload.id,
+                name: storedUpload.name,
+                url: storedUpload.url,
+            });
+            upload.reset('file');
+        } catch {
+            // useHttp exposes validation errors through upload.errors.
+        }
+    };
 
     return (
         <Form<WardrobeItemFormData>
@@ -213,34 +266,56 @@ function WardrobeItemForm({
             options={{
                 preserveScroll: true,
             }}
-            onSuccess={onSuccess}
-            resetOnSuccess={isEditing ? ['main_upload'] : true}
+            onSuccess={() => {
+                if (!isEditing) {
+                    setMainUpload(null);
+                }
+
+                onSuccess();
+            }}
+            resetOnSuccess={
+                isEditing ? ['main_upload', 'main_upload_id'] : true
+            }
             disableWhileProcessing
             className="space-y-5"
         >
-            {({ errors, processing, progress, resetAndClearErrors }) => (
+            {({ errors, processing, resetAndClearErrors }) => (
                 <>
                     <WardrobeItemFormFields
                         item={item}
+                        mainUpload={mainUpload}
                         errors={errors}
-                        disabled={processing}
+                        uploadError={
+                            upload.errors.file ??
+                            errors.main_upload_id ??
+                            errors.main_upload
+                        }
+                        uploadProgress={upload.progress}
+                        uploadProcessing={upload.processing}
+                        disabled={processing || upload.processing}
+                        onMainUploadChange={uploadMainImage}
                     />
-
-                    <WardrobeUploadProgress progress={progress} />
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>
                             <Button
                                 type="button"
                                 variant="secondary"
-                                disabled={processing}
-                                onClick={() => resetAndClearErrors()}
+                                disabled={processing || upload.processing}
+                                onClick={() => {
+                                    upload.cancel();
+                                    upload.resetAndClearErrors();
+                                    resetAndClearErrors();
+                                }}
                             >
                                 {t('Cancel')}
                             </Button>
                         </DialogClose>
 
-                        <Button type="submit" disabled={processing}>
+                        <Button
+                            type="submit"
+                            disabled={processing || upload.processing}
+                        >
                             {processing
                                 ? isEditing
                                     ? t('Saving...')
@@ -258,12 +333,22 @@ function WardrobeItemForm({
 
 function WardrobeItemFormFields({
     item,
+    mainUpload,
     errors,
+    uploadError,
+    uploadProgress,
+    uploadProcessing,
     disabled,
+    onMainUploadChange,
 }: {
     item?: WardrobeItem;
+    mainUpload: WardrobeUpload | null;
     errors: WardrobeItemFormErrors;
+    uploadError?: string;
+    uploadProgress: UploadProgress | null;
+    uploadProcessing: boolean;
     disabled: boolean;
+    onMainUploadChange: (file: File | null) => void;
 }) {
     const { t } = useLaravelReactI18n();
     const fieldIdPrefix = item ? `wardrobe-item-${item.id}` : 'wardrobe-item';
@@ -274,6 +359,12 @@ function WardrobeItemFormFields({
 
     return (
         <div className="space-y-4">
+            <input
+                type="hidden"
+                name="main_upload_id"
+                value={mainUpload?.id ?? ''}
+            />
+
             <div className="grid gap-2">
                 <Label htmlFor={`${fieldIdPrefix}-name`}>{t('Name')}</Label>
 
@@ -323,18 +414,16 @@ function WardrobeItemFormFields({
                     {t('Main image')}
                 </Label>
 
-                <Input
+                <WardrobeMainImageUpload
                     id={`${fieldIdPrefix}-main-upload`}
-                    type="file"
-                    name="main_upload"
-                    accept="image/*"
+                    upload={mainUpload}
                     disabled={disabled}
-                    aria-invalid={Boolean(errors.main_upload)}
-                    aria-describedby={
-                        errors.main_upload
-                            ? `${mainUploadHelpId} ${mainUploadErrorId}`
-                            : mainUploadHelpId
-                    }
+                    error={uploadError}
+                    progress={uploadProgress}
+                    processing={uploadProcessing}
+                    helpId={mainUploadHelpId}
+                    errorId={mainUploadErrorId}
+                    onChange={onMainUploadChange}
                 />
 
                 <p
@@ -344,12 +433,137 @@ function WardrobeItemFormFields({
                     {t('Optional image up to 10 MB.')}
                 </p>
 
-                <InputError
-                    id={mainUploadErrorId}
-                    message={errors.main_upload}
-                />
+                <InputError id={mainUploadErrorId} message={uploadError} />
             </div>
         </div>
+    );
+}
+
+function WardrobeMainImageUpload({
+    id,
+    upload,
+    disabled,
+    error,
+    progress,
+    processing,
+    helpId,
+    errorId,
+    onChange,
+}: {
+    id: string;
+    upload: WardrobeUpload | null;
+    disabled: boolean;
+    error?: string;
+    progress: UploadProgress | null;
+    processing: boolean;
+    helpId: string;
+    errorId: string;
+    onChange: (file: File | null) => void;
+}) {
+    const { t } = useLaravelReactI18n();
+    const describedBy = error ? `${helpId} ${errorId}` : helpId;
+    const isDisabled = disabled || processing;
+
+    const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.currentTarget.files?.[0] ?? null;
+
+        onChange(file);
+        event.currentTarget.value = '';
+    };
+
+    return (
+        <label
+            htmlFor={id}
+            className={cn(
+                'group flex min-h-40 cursor-pointer overflow-hidden rounded-md border border-dashed border-sidebar-border/80 bg-muted/20 text-left transition focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 hover:border-primary/60 hover:bg-muted/30 dark:border-sidebar-border dark:bg-muted/10 dark:hover:bg-muted/20',
+                isDisabled && 'pointer-events-none opacity-60',
+                error &&
+                    'border-destructive focus-within:border-destructive focus-within:ring-destructive/20',
+            )}
+        >
+            <input
+                id={id}
+                type="file"
+                name="main_upload"
+                accept="image/*"
+                className="sr-only"
+                disabled={isDisabled}
+                aria-invalid={Boolean(error)}
+                aria-describedby={describedBy}
+                onChange={handleChange}
+            />
+
+            {upload ? (
+                <div className="grid w-full gap-4 p-3 sm:grid-cols-[8rem_1fr]">
+                    <div className="aspect-square overflow-hidden rounded-md bg-muted">
+                        <img
+                            src={upload.url}
+                            alt={upload.name}
+                            className="size-full object-cover"
+                        />
+                    </div>
+
+                    <div className="flex min-w-0 flex-col justify-center gap-3">
+                        <div className="min-w-0 space-y-1">
+                            <p className="truncate text-sm font-medium">
+                                {upload.name}
+                            </p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                {processing ? (
+                                    <Loader2
+                                        className="size-4 animate-spin"
+                                        aria-hidden="true"
+                                    />
+                                ) : (
+                                    <CheckCircle2
+                                        className="size-4 text-emerald-600 dark:text-emerald-400"
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                <span>
+                                    {processing
+                                        ? t('Uploading image')
+                                        : t('Image ready')}
+                                </span>
+                            </div>
+                        </div>
+
+                        <span className="inline-flex w-fit items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium shadow-xs transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+                            <ImagePlus className="size-4" aria-hidden="true" />
+                            {t('Replace image')}
+                        </span>
+
+                        <WardrobeUploadProgress progress={progress} />
+                    </div>
+                </div>
+            ) : (
+                <div className="flex w-full flex-col items-center justify-center gap-3 p-6 text-center">
+                    <div className="flex size-12 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-xs transition-colors group-hover:text-foreground">
+                        {processing ? (
+                            <Loader2
+                                className="size-5 animate-spin"
+                                aria-hidden="true"
+                            />
+                        ) : (
+                            <ImagePlus className="size-5" aria-hidden="true" />
+                        )}
+                    </div>
+
+                    <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                            {processing
+                                ? t('Uploading image')
+                                : t('Choose image')}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                            {t('Image will be attached after upload.')}
+                        </p>
+                    </div>
+
+                    <WardrobeUploadProgress progress={progress} />
+                </div>
+            )}
+        </label>
     );
 }
 
