@@ -38,6 +38,8 @@ class WardrobeItemControllerTest extends TestCase
         ]);
         $upload = Upload::factory()->for($user)->create([
             'name' => 'linen-shirt.jpg',
+            'disk' => 'local',
+            'path' => 'uploads/linen-shirt.jpg',
         ]);
         $item->mainUpload()->attach($upload);
         Item::factory()->for($otherUser)->create([
@@ -50,12 +52,13 @@ class WardrobeItemControllerTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('wardrobe/index')
-                ->has('items', 1)
-                ->where('items.0.id', $item->id)
-                ->where('items.0.name', 'Linen shirt')
-                ->where('items.0.description', 'Lightweight summer layer.')
-                ->where('items.0.main_upload.0.id', $upload->id)
-                ->where('items.0.main_upload.0.name', 'linen-shirt.jpg'),
+                ->has('items.data', 1)
+                ->where('items.data.0.id', $item->id)
+                ->where('items.data.0.name', 'Linen shirt')
+                ->where('items.data.0.description', 'Lightweight summer layer.')
+                ->where('items.data.0.main_upload.0.id', $upload->id)
+                ->where('items.data.0.main_upload.0.name', 'linen-shirt.jpg')
+                ->where('items.data.0.main_upload.0.url', '/storage/uploads/linen-shirt.jpg'),
             );
     }
 

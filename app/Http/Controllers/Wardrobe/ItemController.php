@@ -10,6 +10,7 @@ use App\Http\Requests\Items\UpdateItemRequest;
 use App\Models\Item;
 use App\Models\Upload;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -32,12 +33,14 @@ class ItemController extends Controller
         Gate::authorize('viewAny', Item::class);
 
         $user = $this->authenticatedUser($request);
+        $items = $user->items()
+            ->with('mainUpload')
+            ->latest()
+            ->paginate(12)
+            ->through(fn (Item $item): array => $this->itemData($item));
 
         return Inertia::render('wardrobe/index', [
-            'items' => $user->items()
-                ->with('mainUpload')
-                ->latest()
-                ->get(),
+            'items' => Inertia::scroll($items),
         ]);
     }
 
@@ -138,6 +141,35 @@ class ItemController extends Controller
             [(string) $upload->getKey()],
             ['type' => ItemUploadType::Main->value],
         );
+    }
+
+    /**
+     * Format a wardrobe item for the Inertia index page.
+     *
+     * @return array{id: string, name: string, description: string|null, main_upload: list<array{id: string, name: string, url: string}>}
+     */
+    private function itemData(Item $item): array
+    {
+        $mainUploads = $item->getRelationValue('mainUpload');
+        $description = $item->getAttribute('description');
+
+        assert($mainUploads instanceof EloquentCollection);
+        assert(is_string($description) || $description === null);
+
+        /** @var EloquentCollection<int, Upload> $mainUploads */
+        return [
+            'id' => (string) $item->getKey(),
+            'name' => (string) $item->getAttribute('name'),
+            'description' => $description,
+            'main_upload' => $mainUploads
+                ->map(fn (Upload $upload): array => [
+                    'id' => (string) $upload->getKey(),
+                    'name' => (string) $upload->getAttribute('name'),
+                    'url' => Storage::disk((string) $upload->getAttribute('disk'))->url((string) $upload->getAttribute('path')),
+                ])
+                ->values()
+                ->all(),
+        ];
     }
 
     private function cleanupUpload(?Upload $upload): void
