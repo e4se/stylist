@@ -51,6 +51,16 @@ class User extends Authenticatable implements HasLocalePreference, PasskeyUser
     }
 
     /**
+     * Get the wardrobe items for the user.
+     *
+     * @return HasMany<Item, $this>
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(Item::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
