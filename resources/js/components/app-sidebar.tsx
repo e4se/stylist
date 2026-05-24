@@ -1,5 +1,10 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Gauge, LayoutGrid, Telescope as TelescopeIcon } from 'lucide-react';
+import {
+    Gauge,
+    LayoutGrid,
+    Shirt,
+    Telescope as TelescopeIcon,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -15,6 +20,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard, telescope } from '@/routes';
 import horizon from '@/routes/horizon';
+import wardrobe from '@/routes/wardrobe';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -22,6 +28,11 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Wardrobe',
+        href: wardrobe.index(),
+        icon: Shirt,
     },
 ];
 
