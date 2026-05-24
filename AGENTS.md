@@ -42,6 +42,23 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Use descriptive names for variables and methods. For example, `isRegisteredForDiscounts`, not `discount()`.
 - Check for existing components to reuse before writing a new one.
 
+## Localization
+
+- This application supports two languages: English and Russian.
+- Store all user-facing text in translation files under `lang/`; update both English and Russian translations when adding or changing copy.
+- For React/Inertia UI text, use `useLaravelReactI18n().t(...)` with strings from `lang/en.json` and `lang/ru.json`.
+- For PHP and Blade text, use Laravel translation helpers such as `__()` or `@lang`, and use keyed PHP translation files under `lang/en` and `lang/ru` when that better matches the domain.
+- Do not hard-code visible copy in controllers, routes, Blade files, React components, emails, breadcrumbs, page titles, labels, placeholders, empty states, validation messages, toasts, or accessibility labels.
+
+## Breadcrumbs
+
+- Breadcrumbs are route-bound and are shared with Inertia as the `breadcrumbs` prop by the breadcrumbs middleware.
+- For every named web/Inertia route rendered in the app layout, add a matching definition in `routes/breadcrumbs.php` with `Breadcrumbs::for('<route.name>', ...)`.
+- The breadcrumb name must match the Laravel route name exactly.
+- Build hierarchy with `$trail->parent('<parent.route.name>')` before pushing the current item.
+- Push translated titles with `$trail->push(__('Title'), route('<route.name>'))`; add every new breadcrumb title to both `lang/en.json` and `lang/ru.json`.
+- For dynamic routes, accept the route parameters or models in the breadcrumb closure and pass them to both `$trail->parent(...)` and `route(...)` as needed.
+
 ## Verification Scripts
 
 - Do not create verification scripts or tinker when tests cover that functionality and prove they work. Unit and feature tests are more important.
