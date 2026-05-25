@@ -26,7 +26,7 @@ class RankItemsBySearch
 
         $query->whereNotNull('embedding');
 
-        if ($query->getConnection()->getDriverName() === 'pgsql') {
+        if ($query->getModel()->getConnection()->getDriverName() === 'pgsql') {
             $query->getQuery()->orderByVectorDistance('embedding', $queryEmbedding);
             $query->orderBy($query->getModel()->getQualifiedKeyName());
 
