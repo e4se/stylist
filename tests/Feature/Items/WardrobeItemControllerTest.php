@@ -12,15 +12,27 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Route as RoutingRoute;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Ai\Embeddings;
+use Laravel\Ai\Prompts\EmbeddingsPrompt;
+use RuntimeException;
 use Tests\TestCase;
 
 class WardrobeItemControllerTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->fakeEmbeddings();
+    }
 
     public function test_wardrobe_routes_are_registered_for_authenticated_verified_users(): void
     {
@@ -77,6 +89,7 @@ class WardrobeItemControllerTest extends TestCase
                 ->component('wardrobe/index')
                 ->has('items.data', 1)
                 ->has('filters.tag_ids', 0)
+                ->where('filters.search', null)
                 ->where('items.data.0.id', $item->id)
                 ->where('items.data.0.name', 'Linen shirt')
                 ->where('items.data.0.description', 'Lightweight summer layer.')
@@ -160,6 +173,68 @@ class WardrobeItemControllerTest extends TestCase
         $this->assertFalse($item->mainUpload()->exists());
     }
 
+    public function test_store_updates_the_created_item_embedding_after_the_transaction_commits(): void
+    {
+        $user = User::factory()->create();
+        $embedding = $this->embeddingVector(0.25);
+        $baselineTransactionLevel = DB::transactionLevel();
+        $transactionLevel = null;
+
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use ($embedding, &$transactionLevel): array {
+            $transactionLevel = DB::transactionLevel();
+
+            return [$embedding];
+        })->preventStrayEmbeddings();
+
+        $this
+            ->actingAs($user)
+            ->post(route('wardrobe.items.store'), [
+                'name' => 'Black jacket',
+                'description' => 'Water resistant shell.',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('wardrobe.index'));
+
+        $item = $user->items()->sole();
+
+        $this->assertSame($baselineTransactionLevel, $transactionLevel);
+        $this->assertSame($embedding, $item->getAttribute('embedding'));
+        $this->assertSame(hash('sha256', "Black jacket\n\nWater resistant shell."), $item->getAttribute('embedding_source_hash'));
+        $this->assertNotNull($item->getAttribute('embedding_generated_at'));
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->contains("Black jacket\n\nWater resistant shell.")
+            && $prompt->dimensions === 1536);
+    }
+
+    public function test_store_keeps_the_created_item_when_embedding_generation_fails(): void
+    {
+        $exception = new RuntimeException('Embedding generation failed.');
+        $user = User::factory()->create();
+
+        Exceptions::fake();
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use ($exception): array {
+            throw $exception;
+        })->preventStrayEmbeddings();
+
+        $this
+            ->actingAs($user)
+            ->post(route('wardrobe.items.store'), [
+                'name' => 'Fallback jacket',
+                'description' => 'Saved without embedding.',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('wardrobe.index'));
+
+        $item = $user->items()->sole();
+
+        $this->assertSame('Fallback jacket', $item->getAttribute('name'));
+        $this->assertSame('Saved without embedding.', $item->getAttribute('description'));
+        $this->assertNull($item->getAttribute('embedding'));
+        $this->assertNull($item->getAttribute('embedding_source_hash'));
+        $this->assertNull($item->getAttribute('embedding_generated_at'));
+        Exceptions::assertReported(fn (RuntimeException $reported): bool => $reported === $exception);
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->contains("Fallback jacket\n\nSaved without embedding."));
+    }
+
     public function test_an_item_can_be_updated_and_its_main_upload_can_be_replaced(): void
     {
         config(['filesystems.default' => 'local']);
@@ -198,6 +273,83 @@ class WardrobeItemControllerTest extends TestCase
         $this->assertModelExists($oldUpload);
         Storage::disk('local')->assertExists($oldUpload->path);
         Storage::disk('local')->assertExists($newUpload->path);
+    }
+
+    public function test_update_refreshes_the_item_embedding_after_the_transaction_commits(): void
+    {
+        $user = User::factory()->create();
+        $item = Item::factory()->for($user)->create([
+            'name' => 'Old jacket',
+            'description' => 'Original description.',
+        ]);
+        $embedding = $this->embeddingVector(0.5);
+        $baselineTransactionLevel = DB::transactionLevel();
+        $transactionLevel = null;
+
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use ($embedding, &$transactionLevel): array {
+            $transactionLevel = DB::transactionLevel();
+
+            return [$embedding];
+        })->preventStrayEmbeddings();
+
+        $this
+            ->actingAs($user)
+            ->patch(route('wardrobe.items.update', $item), [
+                'name' => 'Updated jacket',
+                'description' => 'Updated description.',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('wardrobe.index'));
+
+        $item->refresh();
+
+        $this->assertSame($baselineTransactionLevel, $transactionLevel);
+        $this->assertSame('Updated jacket', $item->getAttribute('name'));
+        $this->assertSame('Updated description.', $item->getAttribute('description'));
+        $this->assertSame($embedding, $item->getAttribute('embedding'));
+        $this->assertSame(hash('sha256', "Updated jacket\n\nUpdated description."), $item->getAttribute('embedding_source_hash'));
+        $this->assertNotNull($item->getAttribute('embedding_generated_at'));
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->contains("Updated jacket\n\nUpdated description.")
+            && $prompt->dimensions === 1536);
+    }
+
+    public function test_update_keeps_the_saved_item_changes_when_embedding_generation_fails(): void
+    {
+        $exception = new RuntimeException('Embedding generation failed.');
+        $user = User::factory()->create();
+        $item = Item::factory()->for($user)->create([
+            'name' => 'Old jacket',
+            'description' => 'Original description.',
+        ]);
+        $item->forceFill([
+            'embedding' => $this->embeddingVector(0.75),
+            'embedding_source_hash' => hash('sha256', 'Old jacket'),
+            'embedding_generated_at' => now()->subDay(),
+        ])->save();
+
+        Exceptions::fake();
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use ($exception): array {
+            throw $exception;
+        })->preventStrayEmbeddings();
+
+        $this
+            ->actingAs($user)
+            ->patch(route('wardrobe.items.update', $item), [
+                'name' => 'Updated fallback jacket',
+                'description' => 'Saved without embedding refresh.',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('wardrobe.index'));
+
+        $item->refresh();
+
+        $this->assertSame('Updated fallback jacket', $item->getAttribute('name'));
+        $this->assertSame('Saved without embedding refresh.', $item->getAttribute('description'));
+        $this->assertNull($item->getAttribute('embedding'));
+        $this->assertNull($item->getAttribute('embedding_source_hash'));
+        $this->assertNull($item->getAttribute('embedding_generated_at'));
+        Exceptions::assertReported(fn (RuntimeException $reported): bool => $reported === $exception);
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->contains("Updated fallback jacket\n\nSaved without embedding refresh."));
     }
 
     public function test_another_users_item_cannot_be_updated_or_receive_a_new_upload(): void
@@ -350,5 +502,25 @@ class WardrobeItemControllerTest extends TestCase
         $this->assertSame($uri, $route->uri());
         $this->assertContains('auth', $route->gatherMiddleware());
         $this->assertContains('verified', $route->gatherMiddleware());
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function fakeEmbeddings(float $value = 0.125): array
+    {
+        $embedding = $this->embeddingVector($value);
+
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => [$embedding])->preventStrayEmbeddings();
+
+        return $embedding;
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function embeddingVector(float $value): array
+    {
+        return array_fill(0, 1536, $value);
     }
 }

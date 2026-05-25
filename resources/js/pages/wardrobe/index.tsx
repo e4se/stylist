@@ -8,6 +8,7 @@ import {
     Loader2,
     Pencil,
     Plus,
+    Search,
     Shirt,
     Trash2,
     X,
@@ -82,6 +83,7 @@ type PaginatedWardrobeItems = {
 
 type WardrobeFilters = {
     tag_ids: string[];
+    search: string | null;
 };
 
 type WardrobeItemFormData = {
@@ -121,7 +123,7 @@ export default function WardrobeIndex({
     filters: WardrobeFilters;
 }) {
     const { t } = useLaravelReactI18n();
-    const isFiltered = filters.tag_ids.length > 0;
+    const isFiltered = filters.tag_ids.length > 0 || Boolean(filters.search);
     const hasTagFilters = tagGroups.some(
         (tagGroup) => tagGroup.tags.length > 0,
     );
@@ -134,6 +136,8 @@ export default function WardrobeIndex({
             <div className="flex justify-end">
                 <CreateWardrobeItemDialog tagGroups={tagGroups} />
             </div>
+
+            <WardrobeSearchForm key={filters.search ?? ''} filters={filters} />
 
             <div
                 className={cn(
@@ -179,6 +183,96 @@ export default function WardrobeIndex({
     );
 }
 
+function WardrobeSearchForm({ filters }: { filters: WardrobeFilters }) {
+    const { t } = useLaravelReactI18n();
+    const [search, setSearch] = useState(filters.search ?? '');
+    const activeSearch = filters.search ?? null;
+    const canClearSearch = search.length > 0 || activeSearch !== null;
+
+    const visitSearch = (nextSearch: string | null) => {
+        const tag_ids = filters.tag_ids;
+        const search = nextSearch;
+
+        router.visit(
+            ItemController.index.get({
+                query: { search, tag_ids },
+            }),
+            {
+                only: ['items', 'filters'],
+                preserveScroll: true,
+                replace: true,
+                reset: ['items'],
+            },
+        );
+    };
+    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        const nextSearch = search.trim();
+        setSearch(nextSearch);
+
+        visitSearch(nextSearch === '' ? null : nextSearch);
+    };
+    const handleClearSearch = () => {
+        setSearch('');
+
+        if (activeSearch !== null) {
+            visitSearch(null);
+        }
+    };
+
+    return (
+        <form
+            role="search"
+            onSubmit={handleSubmit}
+            className="rounded-md border border-sidebar-border/70 bg-background p-4 dark:border-sidebar-border"
+        >
+            <div className="grid gap-2">
+                <Label htmlFor="wardrobe-search">{t('Search wardrobe')}</Label>
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative min-w-0 flex-1">
+                        <Search
+                            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                            aria-hidden="true"
+                        />
+                        <Input
+                            id="wardrobe-search"
+                            type="search"
+                            name="search"
+                            value={search}
+                            onChange={(event) =>
+                                setSearch(event.currentTarget.value)
+                            }
+                            autoComplete="off"
+                            placeholder={t('Item name or description')}
+                            className="pl-9"
+                        />
+                    </div>
+
+                    <div className="flex gap-2 sm:shrink-0">
+                        <Button type="submit" className="flex-1 sm:flex-none">
+                            <Search className="size-4" aria-hidden="true" />
+                            {t('Search items')}
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1 sm:flex-none"
+                            disabled={!canClearSearch}
+                            onClick={handleClearSearch}
+                        >
+                            <X className="size-4" aria-hidden="true" />
+                            {t('Clear search')}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    );
+}
+
 function WardrobeTagFilters({
     tagGroups,
     filters,
@@ -200,11 +294,12 @@ function WardrobeTagFilters({
     }
 
     const visitTagFilters = (tagIds: string[]) => {
+        const search = filters.search;
+        const tag_ids = tagIds;
+
         router.visit(
             ItemController.index.get({
-                query: {
-                    tag_ids: tagIds,
-                },
+                query: { search, tag_ids },
             }),
             {
                 only: ['items', 'filters'],
@@ -1131,12 +1226,16 @@ function WardrobeEmptyState({ isFiltered }: { isFiltered: boolean }) {
                 <div className="space-y-1">
                     <h2 className="text-base font-medium">
                         {isFiltered
-                            ? t('No wardrobe items match these filters')
+                            ? t(
+                                  'No wardrobe items match your search or filters',
+                              )
                             : t('No wardrobe items yet')}
                     </h2>
                     <p className="text-sm text-muted-foreground">
                         {isFiltered
-                            ? t('Try removing one or more tag filters.')
+                            ? t(
+                                  'Try adjusting your search or clearing one or more filters.',
+                              )
                             : t(
                                   'Add clothing items to start building your wardrobe.',
                               )}

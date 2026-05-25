@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Wardrobe;
 
+use App\Actions\Items\RankItemsBySearch;
+use App\Actions\Items\UpdateItemEmbedding;
 use App\Actions\Uploads\StoreUpload;
 use App\Enums\ItemUploadType;
 use App\Http\Controllers\Controller;
@@ -25,7 +27,11 @@ use Throwable;
 
 class ItemController extends Controller
 {
-    public function __construct(private readonly StoreUpload $storeUpload) {}
+    public function __construct(
+        private readonly StoreUpload $storeUpload,
+        private readonly UpdateItemEmbedding $updateItemEmbedding,
+        private readonly RankItemsBySearch $rankItemsBySearch,
+    ) {}
 
     /**
      * Show the authenticated user's wardrobe items.
@@ -38,15 +44,17 @@ class ItemController extends Controller
 
         /** @var User $user */
         $user = $request->user();
-        $query = $user->items()->with(['mainUpload', 'tags.tagGroup']);
+        $query = $user->items()->getQuery()->with(['mainUpload', 'tags.tagGroup']);
         $tagIds = $this->validatedTagIds($request);
+        $search = $this->validatedSearch($request);
 
         foreach ($this->validatedTagIdsByGroup($tagIds, $user) as $groupTagIds) {
             $query->whereHas('tags', fn (Builder $tagQuery): Builder => $tagQuery->whereKey($groupTagIds));
         }
 
+        $this->rankItemsBySearch->apply($query, $search);
+
         $items = $query
-            ->latest()
             ->paginate(12)
             ->withQueryString()
             ->through(fn (Item $item): array => $this->itemData($item));
@@ -56,6 +64,7 @@ class ItemController extends Controller
             'tagGroups' => $this->tagGroupsData($user),
             'filters' => [
                 'tag_ids' => $tagIds,
+                'search' => $search,
             ],
         ]);
     }
@@ -72,7 +81,7 @@ class ItemController extends Controller
         $storedUpload = null;
 
         try {
-            DB::transaction(function () use ($request, $user, &$storedUpload): void {
+            $item = DB::transaction(function () use ($request, $user, &$storedUpload): Item {
                 $item = $user->items()->create($this->itemAttributes($request));
                 $this->syncTags($item, $request);
 
@@ -81,12 +90,16 @@ class ItemController extends Controller
                 if ($mainUpload instanceof Upload) {
                     $this->replaceMainUpload($item, $mainUpload);
                 }
+
+                return $item;
             });
         } catch (Throwable $exception) {
             $this->cleanupUpload($storedUpload);
 
             throw $exception;
         }
+
+        $this->updateItemEmbedding->execute($item);
 
         return to_route('wardrobe.index');
     }
@@ -118,6 +131,8 @@ class ItemController extends Controller
 
             throw $exception;
         }
+
+        $this->updateItemEmbedding->execute($item);
 
         return to_route('wardrobe.index');
     }
@@ -224,6 +239,21 @@ class ItemController extends Controller
         }
 
         return array_values($tagIds);
+    }
+
+    private function validatedSearch(IndexItemRequest $request): ?string
+    {
+        /** @var array{search?: string|null} $validated */
+        $validated = $request->validated();
+        $search = $validated['search'] ?? null;
+
+        if (! is_string($search)) {
+            return null;
+        }
+
+        $search = trim($search);
+
+        return $search === '' ? null : $search;
     }
 
     /**

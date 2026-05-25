@@ -20,6 +20,19 @@ class Item extends Model
     use HasFactory, HasUuids, SoftDeletes;
 
     /**
+     * Get the text that should be embedded for semantic item search.
+     */
+    public function embeddingInput(): string
+    {
+        $parts = array_filter([
+            trim((string) $this->name),
+            trim((string) $this->description),
+        ], static fn (string $part): bool => $part !== '');
+
+        return implode("\n\n", $parts);
+    }
+
+    /**
      * Get the user that owns the item.
      *
      * @return BelongsTo<User, $this>
@@ -61,5 +74,18 @@ class Item extends Model
     {
         return $this->uploads()
             ->withPivotValue('type', ItemUploadType::Main->value);
+    }
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'embedding' => 'array',
+            'embedding_generated_at' => 'datetime',
+        ];
     }
 }
