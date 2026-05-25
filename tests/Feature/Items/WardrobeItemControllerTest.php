@@ -4,6 +4,8 @@ namespace Tests\Feature\Items;
 
 use App\Actions\Uploads\StoreUpload;
 use App\Models\Item;
+use App\Models\Tag;
+use App\Models\TagGroup;
 use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -41,7 +43,26 @@ class WardrobeItemControllerTest extends TestCase
             'disk' => 'local',
             'path' => 'uploads/linen-shirt.jpg',
         ]);
+        $colorGroup = TagGroup::factory()->for($user)->create([
+            'name' => 'Color',
+        ]);
+        $seasonGroup = TagGroup::factory()->for($user)->create([
+            'name' => 'Season',
+        ]);
+        $blackTag = Tag::factory()->for($colorGroup)->create([
+            'name' => 'Black',
+        ]);
+        $summerTag = Tag::factory()->for($seasonGroup)->create([
+            'name' => 'Summer',
+        ]);
+        $foreignGroup = TagGroup::factory()->for($otherUser)->create([
+            'name' => 'Hidden',
+        ]);
+        Tag::factory()->for($foreignGroup)->create([
+            'name' => 'Private',
+        ]);
         $item->mainUpload()->attach($upload);
+        $item->tags()->attach([$summerTag->id, $blackTag->id]);
         Item::factory()->for($otherUser)->create([
             'name' => 'Hidden coat',
         ]);
@@ -58,7 +79,29 @@ class WardrobeItemControllerTest extends TestCase
                 ->where('items.data.0.description', 'Lightweight summer layer.')
                 ->where('items.data.0.main_upload.0.id', $upload->id)
                 ->where('items.data.0.main_upload.0.name', 'linen-shirt.jpg')
-                ->where('items.data.0.main_upload.0.url', '/storage/uploads/linen-shirt.jpg'),
+                ->where('items.data.0.main_upload.0.url', '/storage/uploads/linen-shirt.jpg')
+                ->has('items.data.0.tags', 2)
+                ->where('items.data.0.tags.0.id', $blackTag->id)
+                ->where('items.data.0.tags.0.name', 'Black')
+                ->where('items.data.0.tags.0.tag_group.id', $colorGroup->id)
+                ->where('items.data.0.tags.0.tag_group.name', 'Color')
+                ->where('items.data.0.tags.1.id', $summerTag->id)
+                ->where('items.data.0.tags.1.name', 'Summer')
+                ->where('items.data.0.tags.1.tag_group.id', $seasonGroup->id)
+                ->where('items.data.0.tags.1.tag_group.name', 'Season')
+                ->has('tagGroups', 2)
+                ->where('tagGroups.0.id', $colorGroup->id)
+                ->where('tagGroups.0.name', 'Color')
+                ->has('tagGroups.0.tags', 1)
+                ->where('tagGroups.0.tags.0.id', $blackTag->id)
+                ->where('tagGroups.0.tags.0.tag_group_id', $colorGroup->id)
+                ->where('tagGroups.0.tags.0.name', 'Black')
+                ->where('tagGroups.1.id', $seasonGroup->id)
+                ->where('tagGroups.1.name', 'Season')
+                ->has('tagGroups.1.tags', 1)
+                ->where('tagGroups.1.tags.0.id', $summerTag->id)
+                ->where('tagGroups.1.tags.0.tag_group_id', $seasonGroup->id)
+                ->where('tagGroups.1.tags.0.name', 'Summer'),
             );
     }
 
@@ -235,6 +278,8 @@ class WardrobeItemControllerTest extends TestCase
         });
 
         $user = User::factory()->create();
+        $tagGroup = TagGroup::factory()->for($user)->create();
+        $tag = Tag::factory()->for($tagGroup)->create();
         $file = UploadedFile::fake()->image('orphaned-jacket.jpg');
         $path = $file->hashName('uploads');
 
@@ -245,6 +290,7 @@ class WardrobeItemControllerTest extends TestCase
                     'name' => 'Orphaned jacket',
                     'description' => null,
                     'main_upload' => $file,
+                    'tag_ids' => [$tag->id],
                 ]);
 
             $this->fail('The main upload pivot persistence should fail.');
@@ -253,6 +299,9 @@ class WardrobeItemControllerTest extends TestCase
 
             $this->assertSame(0, Item::count());
             $this->assertSame(0, Upload::count());
+            $this->assertDatabaseMissing('item_tag', [
+                'tag_id' => $tag->id,
+            ]);
         }
     }
 

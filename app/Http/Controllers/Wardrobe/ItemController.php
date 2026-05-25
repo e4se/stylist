@@ -9,6 +9,8 @@ use App\Http\Requests\Items\IndexItemRequest;
 use App\Http\Requests\Items\StoreItemRequest;
 use App\Http\Requests\Items\UpdateItemRequest;
 use App\Models\Item;
+use App\Models\Tag;
+use App\Models\TagGroup;
 use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -30,10 +32,12 @@ class ItemController extends Controller
     public function index(IndexItemRequest $request): Response
     {
         $this->authorize('viewAny', Item::class);
+        $this->authorize('viewAny', TagGroup::class);
+        $this->authorize('viewAny', Tag::class);
 
         /** @var User $user */
         $user = $request->user();
-        $query = $user->items()->with('mainUpload');
+        $query = $user->items()->with(['mainUpload', 'tags.tagGroup']);
         $tagIds = $this->validatedTagIds($request);
 
         if ($tagIds !== []) {
@@ -47,6 +51,7 @@ class ItemController extends Controller
 
         return Inertia::render('wardrobe/index', [
             'items' => Inertia::scroll($items),
+            'tagGroups' => $this->tagGroupsData($user),
         ]);
     }
 
@@ -219,17 +224,20 @@ class ItemController extends Controller
     /**
      * Format a wardrobe item for the Inertia index page.
      *
-     * @return array{id: string, name: string, description: string|null, main_upload: list<array{id: string, name: string, url: string}>}
+     * @return array{id: string, name: string, description: string|null, main_upload: list<array{id: string, name: string, url: string}>, tags: list<array{id: string, name: string, tag_group: array{id: string, name: string}}>}
      */
     private function itemData(Item $item): array
     {
         $mainUploads = $item->getRelationValue('mainUpload');
+        $tags = $item->getRelationValue('tags');
         $description = $item->getAttribute('description');
 
         assert($mainUploads instanceof EloquentCollection);
+        assert($tags instanceof EloquentCollection);
         assert(is_string($description) || $description === null);
 
         /** @var EloquentCollection<int, Upload> $mainUploads */
+        /** @var EloquentCollection<int, Tag> $tags */
         return [
             'id' => (string) $item->getKey(),
             'name' => (string) $item->getAttribute('name'),
@@ -242,7 +250,93 @@ class ItemController extends Controller
                 ])
                 ->values()
                 ->all(),
+            'tags' => $tags
+                ->sortBy(fn (Tag $tag): string => $this->tagSortKey($tag))
+                ->map(fn (Tag $tag): array => $this->itemTagData($tag))
+                ->values()
+                ->all(),
         ];
+    }
+
+    /**
+     * Format user tag groups for item forms and filters.
+     *
+     * @return list<array{id: string, name: string, tags: list<array{id: string, tag_group_id: string, name: string}>}>
+     */
+    private function tagGroupsData(User $user): array
+    {
+        $tagGroups = $user->tagGroups()
+            ->with(['tags' => fn ($query) => $query->orderBy('name')->orderBy('id')])
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get();
+
+        /** @var EloquentCollection<int, TagGroup> $tagGroups */
+        return $tagGroups
+            ->map(fn (TagGroup $tagGroup): array => $this->tagGroupData($tagGroup))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Format a tag group for the Inertia wardrobe page.
+     *
+     * @return array{id: string, name: string, tags: list<array{id: string, tag_group_id: string, name: string}>}
+     */
+    private function tagGroupData(TagGroup $tagGroup): array
+    {
+        $tags = $tagGroup->getRelationValue('tags');
+
+        assert($tags instanceof EloquentCollection);
+
+        /** @var EloquentCollection<int, Tag> $tags */
+        return [
+            'id' => (string) $tagGroup->getKey(),
+            'name' => (string) $tagGroup->getAttribute('name'),
+            'tags' => $tags
+                ->map(fn (Tag $tag): array => [
+                    'id' => (string) $tag->getKey(),
+                    'tag_group_id' => (string) $tag->getAttribute('tag_group_id'),
+                    'name' => (string) $tag->getAttribute('name'),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * Format an item tag for the Inertia wardrobe page.
+     *
+     * @return array{id: string, name: string, tag_group: array{id: string, name: string}}
+     */
+    private function itemTagData(Tag $tag): array
+    {
+        $tagGroup = $tag->getRelationValue('tagGroup');
+
+        assert($tagGroup instanceof TagGroup);
+
+        return [
+            'id' => (string) $tag->getKey(),
+            'name' => (string) $tag->getAttribute('name'),
+            'tag_group' => [
+                'id' => (string) $tagGroup->getKey(),
+                'name' => (string) $tagGroup->getAttribute('name'),
+            ],
+        ];
+    }
+
+    private function tagSortKey(Tag $tag): string
+    {
+        $tagGroup = $tag->getRelationValue('tagGroup');
+
+        assert($tagGroup instanceof TagGroup);
+
+        return sprintf(
+            '%s|%s|%s',
+            mb_strtolower((string) $tagGroup->getAttribute('name')),
+            mb_strtolower((string) $tag->getAttribute('name')),
+            (string) $tag->getKey(),
+        );
     }
 
     private function cleanupUpload(?Upload $upload): void

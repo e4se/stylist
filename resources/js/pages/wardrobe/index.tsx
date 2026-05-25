@@ -16,8 +16,10 @@ import { useState } from 'react';
 import UploadController from '@/actions/App/Http/Controllers/UploadController';
 import ItemController from '@/actions/App/Http/Controllers/Wardrobe/ItemController';
 import InputError from '@/components/input-error';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogClose,
@@ -41,11 +43,33 @@ type WardrobeUpload = {
     url: string;
 };
 
+type WardrobeTagGroupTag = {
+    id: string;
+    tag_group_id: string;
+    name: string;
+};
+
+type WardrobeTagGroup = {
+    id: string;
+    name: string;
+    tags: WardrobeTagGroupTag[];
+};
+
+type WardrobeItemTag = {
+    id: string;
+    name: string;
+    tag_group: {
+        id: string;
+        name: string;
+    };
+};
+
 type WardrobeItem = {
     id: string;
     name: string;
     description: string | null;
     main_upload: WardrobeUpload[];
+    tags: WardrobeItemTag[];
 };
 
 type PaginatedWardrobeItems = {
@@ -57,6 +81,7 @@ type WardrobeItemFormData = {
     description: string;
     main_upload: File | null;
     main_upload_id: string;
+    tag_ids: string[];
 };
 
 type WardrobeUploadFormData = {
@@ -69,7 +94,7 @@ type StoredWardrobeUpload = WardrobeUpload & {
 };
 
 type WardrobeItemFormErrors = Partial<
-    Record<keyof WardrobeItemFormData | 'main_upload', string>
+    Record<keyof WardrobeItemFormData | `tag_ids.${number}`, string>
 >;
 
 type UploadProgress = {
@@ -80,8 +105,10 @@ const loadingSkeletonKeys = ['first', 'second', 'third', 'fourth'] as const;
 
 export default function WardrobeIndex({
     items,
+    tagGroups,
 }: {
     items: PaginatedWardrobeItems;
+    tagGroups: WardrobeTagGroup[];
 }) {
     const { t } = useLaravelReactI18n();
 
@@ -89,7 +116,7 @@ export default function WardrobeIndex({
         <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
             <div className="flex justify-end">
                 <h1 className="sr-only">{t('Wardrobe')}</h1>
-                <CreateWardrobeItemDialog />
+                <CreateWardrobeItemDialog tagGroups={tagGroups} />
             </div>
 
             {items.data.length === 0 ? (
@@ -106,7 +133,11 @@ export default function WardrobeIndex({
                     )}
                 >
                     {items.data.map((item) => (
-                        <WardrobeItemCard key={item.id} item={item} />
+                        <WardrobeItemCard
+                            key={item.id}
+                            item={item}
+                            tagGroups={tagGroups}
+                        />
                     ))}
                 </InfiniteScroll>
             )}
@@ -114,7 +145,13 @@ export default function WardrobeIndex({
     );
 }
 
-function WardrobeItemCard({ item }: { item: WardrobeItem }) {
+function WardrobeItemCard({
+    item,
+    tagGroups,
+}: {
+    item: WardrobeItem;
+    tagGroups: WardrobeTagGroup[];
+}) {
     const { t } = useLaravelReactI18n();
     const mainUpload = item.main_upload[0];
 
@@ -145,17 +182,36 @@ function WardrobeItemCard({ item }: { item: WardrobeItem }) {
                         {item.description}
                     </p>
                 )}
+
+                {item.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                        {item.tags.map((tag) => (
+                            <Badge
+                                key={tag.id}
+                                variant="secondary"
+                                title={`${tag.tag_group.name}: ${tag.name}`}
+                                className="max-w-full rounded-sm px-1.5 py-0 text-xs"
+                            >
+                                <span className="truncate">{tag.name}</span>
+                            </Badge>
+                        ))}
+                    </div>
+                )}
             </CardContent>
 
             <CardFooter className="justify-end gap-1 border-t border-sidebar-border/70 px-3 py-2 dark:border-sidebar-border">
-                <EditWardrobeItemDialog item={item} />
+                <EditWardrobeItemDialog item={item} tagGroups={tagGroups} />
                 <DeleteWardrobeItemDialog item={item} />
             </CardFooter>
         </Card>
     );
 }
 
-function CreateWardrobeItemDialog() {
+function CreateWardrobeItemDialog({
+    tagGroups,
+}: {
+    tagGroups: WardrobeTagGroup[];
+}) {
     const { t } = useLaravelReactI18n();
     const [open, setOpen] = useState(false);
 
@@ -176,13 +232,22 @@ function CreateWardrobeItemDialog() {
                     </DialogDescription>
                 </DialogHeader>
 
-                <WardrobeItemForm onSuccess={() => setOpen(false)} />
+                <WardrobeItemForm
+                    tagGroups={tagGroups}
+                    onSuccess={() => setOpen(false)}
+                />
             </DialogContent>
         </Dialog>
     );
 }
 
-function EditWardrobeItemDialog({ item }: { item: WardrobeItem }) {
+function EditWardrobeItemDialog({
+    item,
+    tagGroups,
+}: {
+    item: WardrobeItem;
+    tagGroups: WardrobeTagGroup[];
+}) {
     const { t } = useLaravelReactI18n();
     const [open, setOpen] = useState(false);
 
@@ -209,6 +274,7 @@ function EditWardrobeItemDialog({ item }: { item: WardrobeItem }) {
 
                 <WardrobeItemForm
                     item={item}
+                    tagGroups={tagGroups}
                     onSuccess={() => setOpen(false)}
                 />
             </DialogContent>
@@ -218,15 +284,20 @@ function EditWardrobeItemDialog({ item }: { item: WardrobeItem }) {
 
 function WardrobeItemForm({
     item,
+    tagGroups,
     onSuccess,
 }: {
     item?: WardrobeItem;
+    tagGroups: WardrobeTagGroup[];
     onSuccess: () => void;
 }) {
     const { t } = useLaravelReactI18n();
     const isEditing = item !== undefined;
     const [mainUpload, setMainUpload] = useState<WardrobeUpload | null>(
         item?.main_upload[0] ?? null,
+    );
+    const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
+        () => item?.tags.map((tag) => tag.id) ?? [],
     );
     const upload = useHttp<WardrobeUploadFormData, StoredWardrobeUpload>({
         file: null,
@@ -259,16 +330,34 @@ function WardrobeItemForm({
             // useHttp exposes validation errors through upload.errors.
         }
     };
+    const handleTagCheckedChange = (tagId: string, checked: boolean) => {
+        setSelectedTagIds((currentTagIds) => {
+            if (checked) {
+                return currentTagIds.includes(tagId)
+                    ? currentTagIds
+                    : [...currentTagIds, tagId];
+            }
+
+            return currentTagIds.filter(
+                (currentTagId) => currentTagId !== tagId,
+            );
+        });
+    };
 
     return (
         <Form<WardrobeItemFormData>
             {...form}
+            transform={(data) => ({
+                ...data,
+                tag_ids: selectedTagIds,
+            })}
             options={{
                 preserveScroll: true,
             }}
             onSuccess={() => {
                 if (!isEditing) {
                     setMainUpload(null);
+                    setSelectedTagIds([]);
                 }
 
                 onSuccess();
@@ -283,7 +372,9 @@ function WardrobeItemForm({
                 <>
                     <WardrobeItemFormFields
                         item={item}
+                        tagGroups={tagGroups}
                         mainUpload={mainUpload}
+                        selectedTagIds={selectedTagIds}
                         errors={errors}
                         uploadError={
                             upload.errors.file ??
@@ -294,6 +385,7 @@ function WardrobeItemForm({
                         uploadProcessing={upload.processing}
                         disabled={processing || upload.processing}
                         onMainUploadChange={uploadMainImage}
+                        onTagCheckedChange={handleTagCheckedChange}
                     />
 
                     <DialogFooter className="gap-2">
@@ -333,22 +425,28 @@ function WardrobeItemForm({
 
 function WardrobeItemFormFields({
     item,
+    tagGroups,
     mainUpload,
+    selectedTagIds,
     errors,
     uploadError,
     uploadProgress,
     uploadProcessing,
     disabled,
     onMainUploadChange,
+    onTagCheckedChange,
 }: {
     item?: WardrobeItem;
+    tagGroups: WardrobeTagGroup[];
     mainUpload: WardrobeUpload | null;
+    selectedTagIds: string[];
     errors: WardrobeItemFormErrors;
     uploadError?: string;
     uploadProgress: UploadProgress | null;
     uploadProcessing: boolean;
     disabled: boolean;
     onMainUploadChange: (file: File | null) => void;
+    onTagCheckedChange: (tagId: string, checked: boolean) => void;
 }) {
     const { t } = useLaravelReactI18n();
     const fieldIdPrefix = item ? `wardrobe-item-${item.id}` : 'wardrobe-item';
@@ -356,6 +454,8 @@ function WardrobeItemFormFields({
     const descriptionErrorId = `${fieldIdPrefix}-description-error`;
     const mainUploadHelpId = `${fieldIdPrefix}-main-upload-help`;
     const mainUploadErrorId = `${fieldIdPrefix}-main-upload-error`;
+    const tagsErrorId = `${fieldIdPrefix}-tags-error`;
+    const tagError = errors.tag_ids ?? errors['tag_ids.0'];
 
     return (
         <div className="space-y-4">
@@ -435,7 +535,101 @@ function WardrobeItemFormFields({
 
                 <InputError id={mainUploadErrorId} message={uploadError} />
             </div>
+
+            <WardrobeItemTagsField
+                idPrefix={fieldIdPrefix}
+                tagGroups={tagGroups}
+                selectedTagIds={selectedTagIds}
+                disabled={disabled}
+                error={tagError}
+                errorId={tagsErrorId}
+                onTagCheckedChange={onTagCheckedChange}
+            />
         </div>
+    );
+}
+
+function WardrobeItemTagsField({
+    idPrefix,
+    tagGroups,
+    selectedTagIds,
+    disabled,
+    error,
+    errorId,
+    onTagCheckedChange,
+}: {
+    idPrefix: string;
+    tagGroups: WardrobeTagGroup[];
+    selectedTagIds: string[];
+    disabled: boolean;
+    error?: string;
+    errorId: string;
+    onTagCheckedChange: (tagId: string, checked: boolean) => void;
+}) {
+    const { t } = useLaravelReactI18n();
+    const selectableTagGroups = tagGroups.filter(
+        (tagGroup) => tagGroup.tags.length > 0,
+    );
+    const selectedTagIdSet = new Set(selectedTagIds);
+
+    if (selectableTagGroups.length === 0) {
+        return null;
+    }
+
+    return (
+        <fieldset
+            className="grid gap-3"
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? errorId : undefined}
+        >
+            <legend className="text-sm font-medium">{t('Tags')}</legend>
+
+            <div className="space-y-3 rounded-md border border-sidebar-border/70 p-3 dark:border-sidebar-border">
+                {selectableTagGroups.map((tagGroup) => (
+                    <div key={tagGroup.id} className="space-y-2">
+                        <p className="text-sm font-medium text-muted-foreground">
+                            {tagGroup.name}
+                        </p>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            {tagGroup.tags.map((tag) => {
+                                const checkboxId = `${idPrefix}-tag-${tag.id}`;
+
+                                return (
+                                    <div
+                                        key={tag.id}
+                                        className="flex min-w-0 items-center gap-2"
+                                    >
+                                        <Checkbox
+                                            id={checkboxId}
+                                            checked={selectedTagIdSet.has(
+                                                tag.id,
+                                            )}
+                                            disabled={disabled}
+                                            aria-invalid={Boolean(error)}
+                                            onCheckedChange={(checked) =>
+                                                onTagCheckedChange(
+                                                    tag.id,
+                                                    checked === true,
+                                                )
+                                            }
+                                        />
+                                        <Label
+                                            htmlFor={checkboxId}
+                                            className="min-w-0 cursor-pointer truncate text-sm font-normal"
+                                        >
+                                            {tag.name}
+                                        </Label>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <InputError id={errorId} message={error} />
+        </fieldset>
     );
 }
 

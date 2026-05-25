@@ -41,6 +41,19 @@ class ItemTagValidationTest extends TestCase
             ->patch(route('wardrobe.items.update', $item), [
                 'name' => 'Updated jacket',
                 'description' => 'Updated description.',
+                'tag_ids' => [$firstTag->id, $secondTag->id],
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('wardrobe.index'));
+
+        $this->assertTrue($item->tags()->whereKey($firstTag->id)->exists());
+        $this->assertTrue($item->tags()->whereKey($secondTag->id)->exists());
+
+        $this
+            ->actingAs($user)
+            ->patch(route('wardrobe.items.update', $item), [
+                'name' => 'Updated jacket',
+                'description' => 'Updated description.',
                 'tag_ids' => [$secondTag->id],
             ])
             ->assertSessionHasNoErrors()
@@ -48,6 +61,10 @@ class ItemTagValidationTest extends TestCase
 
         $this->assertFalse($item->tags()->whereKey($firstTag->id)->exists());
         $this->assertTrue($item->tags()->whereKey($secondTag->id)->exists());
+        $this->assertDatabaseMissing('item_tag', [
+            'item_id' => $item->id,
+            'tag_id' => $firstTag->id,
+        ]);
 
         $this
             ->actingAs($user)
@@ -60,6 +77,10 @@ class ItemTagValidationTest extends TestCase
             ->assertRedirect(route('wardrobe.index'));
 
         $this->assertFalse($item->tags()->exists());
+        $this->assertDatabaseMissing('item_tag', [
+            'item_id' => $item->id,
+            'tag_id' => $secondTag->id,
+        ]);
     }
 
     public function test_item_store_and_update_requests_reject_invalid_duplicate_and_foreign_tag_ids(): void

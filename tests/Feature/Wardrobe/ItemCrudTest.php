@@ -4,6 +4,8 @@ namespace Tests\Feature\Wardrobe;
 
 use App\Enums\ItemUploadType;
 use App\Models\Item;
+use App\Models\Tag;
+use App\Models\TagGroup;
 use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -53,7 +55,20 @@ class ItemCrudTest extends TestCase
             'driver' => 'local',
             'path' => 'uploads/linen-shirt.jpg',
         ]);
+        $tagGroup = TagGroup::factory()->for($user)->create([
+            'name' => 'Color',
+        ]);
+        $tag = Tag::factory()->for($tagGroup)->create([
+            'name' => 'Black',
+        ]);
+        $foreignTagGroup = TagGroup::factory()->for($otherUser)->create([
+            'name' => 'Hidden',
+        ]);
+        Tag::factory()->for($foreignTagGroup)->create([
+            'name' => 'Private',
+        ]);
         $item->mainUpload()->attach($upload);
+        $item->tags()->attach($tag);
         Item::factory()->for($otherUser)->create([
             'name' => 'Hidden coat',
         ]);
@@ -69,6 +84,7 @@ class ItemCrudTest extends TestCase
                 ->whereType('items.data.0.name', 'string')
                 ->whereType('items.data.0.description', 'string|null')
                 ->whereType('items.data.0.main_upload', 'array')
+                ->whereType('items.data.0.tags', 'array')
                 ->where('items.data.0.id', $item->id)
                 ->where('items.data.0.name', 'Linen shirt')
                 ->where('items.data.0.description', 'Lightweight summer layer.')
@@ -78,7 +94,30 @@ class ItemCrudTest extends TestCase
                 ->whereType('items.data.0.main_upload.0.url', 'string')
                 ->where('items.data.0.main_upload.0.id', $upload->id)
                 ->where('items.data.0.main_upload.0.name', 'linen-shirt.jpg')
-                ->where('items.data.0.main_upload.0.url', '/storage/uploads/linen-shirt.jpg'),
+                ->where('items.data.0.main_upload.0.url', '/storage/uploads/linen-shirt.jpg')
+                ->has('items.data.0.tags', 1)
+                ->whereType('items.data.0.tags.0.id', 'string')
+                ->whereType('items.data.0.tags.0.name', 'string')
+                ->whereType('items.data.0.tags.0.tag_group', 'array')
+                ->whereType('items.data.0.tags.0.tag_group.id', 'string')
+                ->whereType('items.data.0.tags.0.tag_group.name', 'string')
+                ->where('items.data.0.tags.0.id', $tag->id)
+                ->where('items.data.0.tags.0.name', 'Black')
+                ->where('items.data.0.tags.0.tag_group.id', $tagGroup->id)
+                ->where('items.data.0.tags.0.tag_group.name', 'Color')
+                ->has('tagGroups', 1)
+                ->whereType('tagGroups.0.id', 'string')
+                ->whereType('tagGroups.0.name', 'string')
+                ->whereType('tagGroups.0.tags', 'array')
+                ->where('tagGroups.0.id', $tagGroup->id)
+                ->where('tagGroups.0.name', 'Color')
+                ->has('tagGroups.0.tags', 1)
+                ->whereType('tagGroups.0.tags.0.id', 'string')
+                ->whereType('tagGroups.0.tags.0.tag_group_id', 'string')
+                ->whereType('tagGroups.0.tags.0.name', 'string')
+                ->where('tagGroups.0.tags.0.id', $tag->id)
+                ->where('tagGroups.0.tags.0.tag_group_id', $tagGroup->id)
+                ->where('tagGroups.0.tags.0.name', 'Black'),
             );
     }
 
