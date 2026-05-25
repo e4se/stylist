@@ -11,6 +11,11 @@ Breadcrumbs::for('wardrobe.index', function (BreadcrumbTrail $trail): void {
     $trail->push(__('Wardrobe'), route('wardrobe.index'));
 });
 
+Breadcrumbs::for('wardrobe.tags.index', function (BreadcrumbTrail $trail): void {
+    $trail->parent('wardrobe.index');
+    $trail->push(__('Tags'), route('wardrobe.tags.index'));
+});
+
 Breadcrumbs::for('settings', function (BreadcrumbTrail $trail): void {
     $trail->push(__('Settings'), route('settings.index'));
 });
