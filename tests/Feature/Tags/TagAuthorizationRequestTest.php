@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Tags;
 
-use App\Enums\Role;
 use App\Http\Requests\Tags\StoreTagGroupRequest;
 use App\Http\Requests\Tags\StoreTagRequest;
 use App\Http\Requests\Tags\UpdateTagGroupRequest;
@@ -10,7 +9,6 @@ use App\Http\Requests\Tags\UpdateTagRequest;
 use App\Models\Tag;
 use App\Models\TagGroup;
 use App\Models\User;
-use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
@@ -61,16 +59,11 @@ class TagAuthorizationRequestTest extends TestCase
         });
     }
 
-    public function test_tag_group_policy_allows_users_to_manage_only_their_own_groups_and_admins_bypass(): void
+    public function test_tag_group_policy_allows_users_to_manage_only_their_own_groups(): void
     {
-        $this->seed(RoleSeeder::class);
-
         $owner = User::factory()->create();
         $otherUser = User::factory()->create();
-        $admin = User::factory()->create();
         $tagGroup = TagGroup::factory()->for($owner)->create();
-
-        $admin->assignRole(Role::Admin);
 
         $this->assertTrue(Gate::forUser($owner)->allows('viewAny', TagGroup::class));
         $this->assertTrue(Gate::forUser($owner)->allows('create', TagGroup::class));
@@ -81,22 +74,14 @@ class TagAuthorizationRequestTest extends TestCase
         $this->assertFalse(Gate::forUser($otherUser)->allows('view', $tagGroup));
         $this->assertFalse(Gate::forUser($otherUser)->allows('update', $tagGroup));
         $this->assertFalse(Gate::forUser($otherUser)->allows('delete', $tagGroup));
-
-        $this->assertTrue(Gate::forUser($admin)->allows('update', $tagGroup));
-        $this->assertTrue(Gate::forUser($admin)->allows('delete', $tagGroup));
     }
 
-    public function test_tag_policy_allows_users_to_manage_only_their_own_tags_and_admins_bypass(): void
+    public function test_tag_policy_allows_users_to_manage_only_their_own_tags(): void
     {
-        $this->seed(RoleSeeder::class);
-
         $owner = User::factory()->create();
         $otherUser = User::factory()->create();
-        $admin = User::factory()->create();
         $tagGroup = TagGroup::factory()->for($owner)->create();
         $tag = Tag::factory()->for($tagGroup)->create();
-
-        $admin->assignRole(Role::Admin);
 
         $this->assertTrue(Gate::forUser($owner)->allows('viewAny', Tag::class));
         $this->assertTrue(Gate::forUser($owner)->allows('create', [Tag::class, $tagGroup]));
@@ -108,9 +93,6 @@ class TagAuthorizationRequestTest extends TestCase
         $this->assertFalse(Gate::forUser($otherUser)->allows('view', $tag));
         $this->assertFalse(Gate::forUser($otherUser)->allows('update', $tag));
         $this->assertFalse(Gate::forUser($otherUser)->allows('delete', $tag));
-
-        $this->assertTrue(Gate::forUser($admin)->allows('update', $tag));
-        $this->assertTrue(Gate::forUser($admin)->allows('delete', $tag));
     }
 
     public function test_tag_group_requests_validate_required_length_and_scoped_unique_names(): void

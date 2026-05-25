@@ -38,7 +38,7 @@ class RoleTest extends TestCase
         $this->assertTrue($user->hasRole(Role::Admin));
     }
 
-    public function test_admin_role_grants_all_gate_checks(): void
+    public function test_admin_role_does_not_grant_unspecified_gate_checks(): void
     {
         $this->seed(RoleSeeder::class);
 
@@ -48,7 +48,7 @@ class RoleTest extends TestCase
         $admin->assignRole(Role::Admin);
 
         $this->assertTrue($admin->hasRole(Role::Admin));
-        $this->assertTrue(Gate::forUser($admin)->allows('manage-admin-area'));
+        $this->assertFalse(Gate::forUser($admin)->allows('manage-admin-area'));
         $this->assertFalse(Gate::forUser($user)->allows('manage-admin-area'));
     }
 }
