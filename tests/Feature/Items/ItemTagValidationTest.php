@@ -7,6 +7,7 @@ use App\Models\Tag;
 use App\Models\TagGroup;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -151,34 +152,96 @@ class ItemTagValidationTest extends TestCase
         $this->assertSame(0, $user->items()->where('name', 'Foreign tag item')->count());
     }
 
-    public function test_index_filters_by_owned_tags_and_rejects_foreign_tag_filters(): void
+    public function test_index_filters_by_owned_tags_with_or_semantics_inside_groups_and_and_semantics_between_groups(): void
     {
         $user = User::factory()->create();
         $otherUser = User::factory()->create();
-        $tagGroup = TagGroup::factory()->for($user)->create();
-        $foreignTagGroup = TagGroup::factory()->for($otherUser)->create();
-        $matchingTag = Tag::factory()->for($tagGroup)->create();
-        $otherTag = Tag::factory()->for($tagGroup)->create();
-        $foreignTag = Tag::factory()->for($foreignTagGroup)->create();
-        $matchingItem = Item::factory()->for($user)->create([
-            'name' => 'Tagged jacket',
+        $colorGroup = TagGroup::factory()->for($user)->create([
+            'name' => 'Color',
         ]);
-        $otherItem = Item::factory()->for($user)->create([
-            'name' => 'Other jacket',
+        $seasonGroup = TagGroup::factory()->for($user)->create([
+            'name' => 'Season',
+        ]);
+        $foreignTagGroup = TagGroup::factory()->for($otherUser)->create();
+        $blackTag = Tag::factory()->for($colorGroup)->create([
+            'name' => 'Black',
+        ]);
+        $whiteTag = Tag::factory()->for($colorGroup)->create([
+            'name' => 'White',
+        ]);
+        $redTag = Tag::factory()->for($colorGroup)->create([
+            'name' => 'Red',
+        ]);
+        $summerTag = Tag::factory()->for($seasonGroup)->create([
+            'name' => 'Summer',
+        ]);
+        $winterTag = Tag::factory()->for($seasonGroup)->create([
+            'name' => 'Winter',
+        ]);
+        $foreignTag = Tag::factory()->for($foreignTagGroup)->create();
+        $blackSummerItem = Item::factory()->for($user)->create([
+            'name' => 'Black summer shirt',
+            'created_at' => now()->subMinutes(5),
+        ]);
+        $whiteSummerItem = Item::factory()->for($user)->create([
+            'name' => 'White summer shirt',
+            'created_at' => now()->subMinutes(4),
+        ]);
+        $blackWinterItem = Item::factory()->for($user)->create([
+            'name' => 'Black winter coat',
+            'created_at' => now()->subMinutes(3),
+        ]);
+        $redSummerItem = Item::factory()->for($user)->create([
+            'name' => 'Red summer shirt',
+            'created_at' => now()->subMinutes(2),
+        ]);
+        Item::factory()->for($user)->create([
+            'name' => 'Untagged jacket',
+            'created_at' => now()->subMinute(),
+        ]);
+        Item::factory()->for($otherUser)->create([
+            'name' => 'Hidden black summer shirt',
         ]);
 
-        $matchingItem->tags()->attach($matchingTag);
-        $otherItem->tags()->attach($otherTag);
+        $blackSummerItem->tags()->attach([$blackTag->id, $summerTag->id]);
+        $whiteSummerItem->tags()->attach([$whiteTag->id, $summerTag->id]);
+        $blackWinterItem->tags()->attach([$blackTag->id, $winterTag->id]);
+        $redSummerItem->tags()->attach([$redTag->id, $summerTag->id]);
 
         $this
             ->actingAs($user)
-            ->get(route('wardrobe.index', ['tag_ids' => [$matchingTag->id]]))
+            ->get(route('wardrobe.index', ['tag_ids' => [$blackTag->id, $whiteTag->id]]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('wardrobe/index')
-                ->has('items.data', 1)
-                ->where('items.data.0.id', $matchingItem->id)
-                ->where('items.data.0.name', 'Tagged jacket'),
+                ->where('filters.tag_ids.0', $blackTag->id)
+                ->where('filters.tag_ids.1', $whiteTag->id)
+                ->where(
+                    'items.data',
+                    fn (Collection $items): bool => $items->pluck('id')->all() === [
+                        $blackWinterItem->id,
+                        $whiteSummerItem->id,
+                        $blackSummerItem->id,
+                    ],
+                ),
+            );
+
+        $this
+            ->actingAs($user)
+            ->get(route('wardrobe.index', ['tag_ids' => [$blackTag->id, $whiteTag->id, $summerTag->id]]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('wardrobe/index')
+                ->where('filters.tag_ids.0', $blackTag->id)
+                ->where('filters.tag_ids.1', $whiteTag->id)
+                ->where('filters.tag_ids.2', $summerTag->id)
+                ->where(
+                    'items.data',
+                    fn (Collection $items): bool => $items->pluck('id')->all() === [
+                        $whiteSummerItem->id,
+                        $blackSummerItem->id,
+                    ],
+                ),
             );
 
         $this
@@ -186,5 +249,37 @@ class ItemTagValidationTest extends TestCase
             ->getJson(route('wardrobe.index', ['tag_ids' => [$foreignTag->id]]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('tag_ids.0');
+    }
+
+    public function test_index_pagination_links_keep_active_tag_filters(): void
+    {
+        $user = User::factory()->create();
+        $tagGroup = TagGroup::factory()->for($user)->create();
+        $tag = Tag::factory()->for($tagGroup)->create();
+
+        foreach (range(1, 13) as $itemNumber) {
+            $item = Item::factory()->for($user)->create([
+                'name' => "Tagged item {$itemNumber}",
+                'created_at' => now()->subMinutes($itemNumber),
+            ]);
+
+            $item->tags()->attach($tag);
+        }
+
+        $this
+            ->actingAs($user)
+            ->get(route('wardrobe.index', ['tag_ids' => [$tag->id]]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('wardrobe/index')
+                ->has('items.data', 12)
+                ->where('filters.tag_ids.0', $tag->id)
+                ->where(
+                    'items.next_page_url',
+                    fn (?string $url): bool => is_string($url)
+                        && str_contains($url, 'page=2')
+                        && str_contains($url, 'tag_ids%5B0%5D='.$tag->id),
+                ),
+            );
     }
 }

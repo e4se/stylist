@@ -1,7 +1,8 @@
-import { Form, InfiniteScroll, useHttp } from '@inertiajs/react';
+import { Form, InfiniteScroll, router, useHttp } from '@inertiajs/react';
 import { useLaravelReactI18n } from 'laravel-react-i18n';
 import {
     CheckCircle2,
+    Filter,
     ImageIcon,
     ImagePlus,
     Loader2,
@@ -9,6 +10,7 @@ import {
     Plus,
     Shirt,
     Trash2,
+    X,
 } from 'lucide-react';
 import type { ChangeEvent } from 'react';
 import { useState } from 'react';
@@ -76,6 +78,10 @@ type PaginatedWardrobeItems = {
     data: WardrobeItem[];
 };
 
+type WardrobeFilters = {
+    tag_ids: string[];
+};
+
 type WardrobeItemFormData = {
     name: string;
     description: string;
@@ -106,21 +112,27 @@ const loadingSkeletonKeys = ['first', 'second', 'third', 'fourth'] as const;
 export default function WardrobeIndex({
     items,
     tagGroups,
+    filters,
 }: {
     items: PaginatedWardrobeItems;
     tagGroups: WardrobeTagGroup[];
+    filters: WardrobeFilters;
 }) {
     const { t } = useLaravelReactI18n();
+    const isFiltered = filters.tag_ids.length > 0;
 
     return (
         <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
+            <h1 className="sr-only">{t('Wardrobe')}</h1>
+
             <div className="flex justify-end">
-                <h1 className="sr-only">{t('Wardrobe')}</h1>
                 <CreateWardrobeItemDialog tagGroups={tagGroups} />
             </div>
 
+            <WardrobeTagFilters tagGroups={tagGroups} filters={filters} />
+
             {items.data.length === 0 ? (
-                <WardrobeEmptyState />
+                <WardrobeEmptyState isFiltered={isFiltered} />
             ) : (
                 <InfiniteScroll
                     data="items"
@@ -142,6 +154,144 @@ export default function WardrobeIndex({
                 </InfiniteScroll>
             )}
         </div>
+    );
+}
+
+function WardrobeTagFilters({
+    tagGroups,
+    filters,
+}: {
+    tagGroups: WardrobeTagGroup[];
+    filters: WardrobeFilters;
+}) {
+    const { t } = useLaravelReactI18n();
+    const selectableTagGroups = tagGroups.filter(
+        (tagGroup) => tagGroup.tags.length > 0,
+    );
+    const selectedTagIds = filters.tag_ids;
+    const selectedTagIdSet = new Set(selectedTagIds);
+
+    if (selectableTagGroups.length === 0) {
+        return null;
+    }
+
+    const visitTagFilters = (tagIds: string[]) => {
+        router.get(
+            ItemController.index.url({
+                query: {
+                    tag_ids: tagIds,
+                },
+            }),
+            {},
+            {
+                only: ['items', 'filters'],
+                preserveScroll: true,
+                replace: true,
+                reset: ['items'],
+            },
+        );
+    };
+    const handleTagCheckedChange = (tagId: string, checked: boolean) => {
+        let nextTagIds = selectedTagIds;
+
+        if (checked && !selectedTagIds.includes(tagId)) {
+            nextTagIds = [...selectedTagIds, tagId];
+        }
+
+        if (!checked) {
+            nextTagIds = selectedTagIds.filter(
+                (selectedTagId) => selectedTagId !== tagId,
+            );
+        }
+
+        visitTagFilters(nextTagIds);
+    };
+    const isFiltering = selectedTagIds.length > 0;
+
+    return (
+        <section
+            aria-labelledby="wardrobe-tag-filters-title"
+            className="space-y-4 rounded-md border border-sidebar-border/70 bg-background p-4 shadow-xs dark:border-sidebar-border"
+        >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
+                        <Filter className="size-4" aria-hidden="true" />
+                    </span>
+                    <h2
+                        id="wardrobe-tag-filters-title"
+                        className="text-sm font-medium"
+                    >
+                        {t('Filter by tags')}
+                    </h2>
+
+                    {isFiltering && (
+                        <Badge
+                            variant="secondary"
+                            className="rounded-sm px-1.5 py-0 text-xs"
+                        >
+                            {t(':count selected', {
+                                count: selectedTagIds.length,
+                            })}
+                        </Badge>
+                    )}
+                </div>
+
+                {isFiltering && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => visitTagFilters([])}
+                    >
+                        <X className="size-4" aria-hidden="true" />
+                        {t('Clear filters')}
+                    </Button>
+                )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {selectableTagGroups.map((tagGroup) => (
+                    <fieldset key={tagGroup.id} className="min-w-0 space-y-2">
+                        <legend className="text-sm font-medium text-muted-foreground">
+                            {tagGroup.name}
+                        </legend>
+
+                        <div className="grid gap-2">
+                            {tagGroup.tags.map((tag) => {
+                                const checkboxId = `wardrobe-filter-tag-${tag.id}`;
+
+                                return (
+                                    <div
+                                        key={tag.id}
+                                        className="flex min-w-0 items-center gap-2"
+                                    >
+                                        <Checkbox
+                                            id={checkboxId}
+                                            checked={selectedTagIdSet.has(
+                                                tag.id,
+                                            )}
+                                            onCheckedChange={(checked) =>
+                                                handleTagCheckedChange(
+                                                    tag.id,
+                                                    checked === true,
+                                                )
+                                            }
+                                        />
+                                        <Label
+                                            htmlFor={checkboxId}
+                                            className="min-w-0 cursor-pointer truncate text-sm font-normal"
+                                        >
+                                            {tag.name}
+                                        </Label>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </fieldset>
+                ))}
+            </div>
+        </section>
     );
 }
 
@@ -875,7 +1025,7 @@ function WardrobeImagePlaceholder({ label }: { label: string }) {
     );
 }
 
-function WardrobeEmptyState() {
+function WardrobeEmptyState({ isFiltered }: { isFiltered: boolean }) {
     const { t } = useLaravelReactI18n();
 
     return (
@@ -886,12 +1036,16 @@ function WardrobeEmptyState() {
                 </div>
                 <div className="space-y-1">
                     <h2 className="text-base font-medium">
-                        {t('No wardrobe items yet')}
+                        {isFiltered
+                            ? t('No wardrobe items match these filters')
+                            : t('No wardrobe items yet')}
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                        {t(
-                            'Add clothing items to start building your wardrobe.',
-                        )}
+                        {isFiltered
+                            ? t('Try removing one or more tag filters.')
+                            : t(
+                                  'Add clothing items to start building your wardrobe.',
+                              )}
                     </p>
                 </div>
             </div>

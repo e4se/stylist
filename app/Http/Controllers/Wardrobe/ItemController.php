@@ -13,6 +13,7 @@ use App\Models\Tag;
 use App\Models\TagGroup;
 use App\Models\Upload;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -40,18 +41,22 @@ class ItemController extends Controller
         $query = $user->items()->with(['mainUpload', 'tags.tagGroup']);
         $tagIds = $this->validatedTagIds($request);
 
-        if ($tagIds !== []) {
-            $query->whereHas('tags', fn ($tagQuery) => $tagQuery->whereKey($tagIds));
+        foreach ($this->validatedTagIdsByGroup($tagIds, $user) as $groupTagIds) {
+            $query->whereHas('tags', fn (Builder $tagQuery): Builder => $tagQuery->whereKey($groupTagIds));
         }
 
         $items = $query
             ->latest()
             ->paginate(12)
+            ->withQueryString()
             ->through(fn (Item $item): array => $this->itemData($item));
 
         return Inertia::render('wardrobe/index', [
             'items' => Inertia::scroll($items),
             'tagGroups' => $this->tagGroupsData($user),
+            'filters' => [
+                'tag_ids' => $tagIds,
+            ],
         ]);
     }
 
@@ -219,6 +224,34 @@ class ItemController extends Controller
         }
 
         return array_values($tagIds);
+    }
+
+    /**
+     * @param  list<string>  $tagIds
+     * @return array<string, list<string>>
+     */
+    private function validatedTagIdsByGroup(array $tagIds, User $user): array
+    {
+        if ($tagIds === []) {
+            return [];
+        }
+
+        $tags = Tag::query()
+            ->select(['id', 'tag_group_id'])
+            ->whereKey($tagIds)
+            ->whereIn('tag_group_id', $user->tagGroups()->select('id'))
+            ->get();
+
+        /** @var EloquentCollection<int, Tag> $tags */
+        $tagIdsByGroup = [];
+
+        foreach ($tags as $tag) {
+            $tagGroupId = (string) $tag->getAttribute('tag_group_id');
+
+            $tagIdsByGroup[$tagGroupId][] = (string) $tag->getKey();
+        }
+
+        return $tagIdsByGroup;
     }
 
     /**
