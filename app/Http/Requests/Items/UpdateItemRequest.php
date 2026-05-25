@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Items;
 
+use App\Concerns\ItemTagValidationRules;
 use App\Models\Item;
 use App\Models\Upload;
 use Closure;
@@ -14,6 +15,8 @@ use Illuminate\Validation\Rules\File;
 
 class UpdateItemRequest extends FormRequest
 {
+    use ItemTagValidationRules;
+
     /**
      * Maximum accepted main upload size in kilobytes.
      */
@@ -64,6 +67,7 @@ class UpdateItemRequest extends FormRequest
                 Rule::exists((new Upload)->getTable(), 'id')
                     ->where(fn (Builder $query): Builder => $query->where('user_id', $this->user()?->getAuthIdentifier())),
             ],
+            ...$this->itemTagRules($this->user()),
         ];
     }
 

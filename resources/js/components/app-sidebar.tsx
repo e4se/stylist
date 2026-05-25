@@ -3,6 +3,7 @@ import {
     Gauge,
     LayoutGrid,
     Shirt,
+    Tags,
     Telescope as TelescopeIcon,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
@@ -33,6 +34,11 @@ const mainNavItems: NavItem[] = [
         title: 'Wardrobe',
         href: wardrobe.index(),
         icon: Shirt,
+    },
+    {
+        title: 'Tags',
+        href: wardrobe.tags.index(),
+        icon: Tags,
     },
 ];
 
