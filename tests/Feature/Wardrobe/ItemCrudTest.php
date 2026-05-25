@@ -12,11 +12,20 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Ai\Embeddings;
+use Laravel\Ai\Prompts\EmbeddingsPrompt;
 use Tests\TestCase;
 
 class ItemCrudTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->fakeEmbeddings();
+    }
 
     public function test_guests_are_redirected_from_wardrobe_crud_routes(): void
     {
@@ -360,5 +369,12 @@ class ItemCrudTest extends TestCase
         $this->assertSoftDeleted($item);
         $this->assertModelExists($upload);
         Storage::disk('local')->assertExists($upload->path);
+    }
+
+    private function fakeEmbeddings(): void
+    {
+        $embedding = array_fill(0, 1536, 0.125);
+
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => [$embedding])->preventStrayEmbeddings();
     }
 }

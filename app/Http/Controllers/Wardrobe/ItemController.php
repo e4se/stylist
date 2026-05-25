@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Wardrobe;
 
+use App\Actions\Items\UpdateItemEmbedding;
 use App\Actions\Uploads\StoreUpload;
 use App\Enums\ItemUploadType;
 use App\Http\Controllers\Controller;
@@ -25,7 +26,10 @@ use Throwable;
 
 class ItemController extends Controller
 {
-    public function __construct(private readonly StoreUpload $storeUpload) {}
+    public function __construct(
+        private readonly StoreUpload $storeUpload,
+        private readonly UpdateItemEmbedding $updateItemEmbedding,
+    ) {}
 
     /**
      * Show the authenticated user's wardrobe items.
@@ -72,7 +76,7 @@ class ItemController extends Controller
         $storedUpload = null;
 
         try {
-            DB::transaction(function () use ($request, $user, &$storedUpload): void {
+            $item = DB::transaction(function () use ($request, $user, &$storedUpload): Item {
                 $item = $user->items()->create($this->itemAttributes($request));
                 $this->syncTags($item, $request);
 
@@ -81,12 +85,16 @@ class ItemController extends Controller
                 if ($mainUpload instanceof Upload) {
                     $this->replaceMainUpload($item, $mainUpload);
                 }
+
+                return $item;
             });
         } catch (Throwable $exception) {
             $this->cleanupUpload($storedUpload);
 
             throw $exception;
         }
+
+        $this->updateItemEmbedding->execute($item);
 
         return to_route('wardrobe.index');
     }
@@ -118,6 +126,8 @@ class ItemController extends Controller
 
             throw $exception;
         }
+
+        $this->updateItemEmbedding->execute($item);
 
         return to_route('wardrobe.index');
     }

@@ -9,11 +9,20 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Ai\Embeddings;
+use Laravel\Ai\Prompts\EmbeddingsPrompt;
 use Tests\TestCase;
 
 class ItemTagValidationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->fakeEmbeddings();
+    }
 
     public function test_items_can_be_created_updated_and_cleared_with_owned_tags(): void
     {
@@ -283,5 +292,12 @@ class ItemTagValidationTest extends TestCase
                         && str_contains($url, 'tag_ids%5B0%5D='.$tag->id),
                 ),
             );
+    }
+
+    private function fakeEmbeddings(): void
+    {
+        $embedding = array_fill(0, 1536, 0.125);
+
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => [$embedding])->preventStrayEmbeddings();
     }
 }
