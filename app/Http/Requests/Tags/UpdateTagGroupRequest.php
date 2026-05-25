@@ -38,6 +38,18 @@ class UpdateTagGroupRequest extends FormRequest
         ];
     }
 
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'name' => (string) __('validation.attributes.tag_group_name'),
+        ];
+    }
+
     private function uniqueNameRule(): Unique
     {
         $rule = Rule::unique(TagGroup::class, 'name')

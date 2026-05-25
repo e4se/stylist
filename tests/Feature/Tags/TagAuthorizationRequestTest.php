@@ -131,7 +131,8 @@ class TagAuthorizationRequestTest extends TestCase
             ->actingAs($user)
             ->postTagGroup(['name' => null])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('name');
+            ->assertJsonValidationErrors('name')
+            ->assertJsonPath('errors.name.0', 'The tag group name field is required.');
 
         $this
             ->actingAs($user)
@@ -185,7 +186,18 @@ class TagAuthorizationRequestTest extends TestCase
             ->actingAs($user)
             ->postTag(['tag_group_id' => null])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('tag_group_id');
+            ->assertJsonValidationErrors('tag_group_id')
+            ->assertJsonPath('errors.tag_group_id.0', 'The tag group field is required.');
+
+        $this
+            ->actingAs($user)
+            ->postTag([
+                'tag_group_id' => $tagGroup->id,
+                'name' => null,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name')
+            ->assertJsonPath('errors.name.0', 'The tag name field is required.');
 
         $this
             ->actingAs($user)

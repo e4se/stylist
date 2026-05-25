@@ -196,6 +196,12 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'tag_group_id' => 'tag group',
+        'tag_group_name' => 'tag group name',
+        'tag_ids' => 'tags',
+        'tag_ids.*' => 'tag',
+        'tag_name' => 'tag name',
+    ],
 
 ];
