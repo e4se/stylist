@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Wardrobe;
 
+use App\Actions\Items\RankItemsBySearch;
 use App\Actions\Items\UpdateItemEmbedding;
 use App\Actions\Uploads\StoreUpload;
 use App\Enums\ItemUploadType;
@@ -29,6 +30,7 @@ class ItemController extends Controller
     public function __construct(
         private readonly StoreUpload $storeUpload,
         private readonly UpdateItemEmbedding $updateItemEmbedding,
+        private readonly RankItemsBySearch $rankItemsBySearch,
     ) {}
 
     /**
@@ -42,7 +44,7 @@ class ItemController extends Controller
 
         /** @var User $user */
         $user = $request->user();
-        $query = $user->items()->with(['mainUpload', 'tags.tagGroup']);
+        $query = $user->items()->getQuery()->with(['mainUpload', 'tags.tagGroup']);
         $tagIds = $this->validatedTagIds($request);
         $search = $this->validatedSearch($request);
 
@@ -50,8 +52,9 @@ class ItemController extends Controller
             $query->whereHas('tags', fn (Builder $tagQuery): Builder => $tagQuery->whereKey($groupTagIds));
         }
 
+        $this->rankItemsBySearch->apply($query, $search);
+
         $items = $query
-            ->latest()
             ->paginate(12)
             ->withQueryString()
             ->through(fn (Item $item): array => $this->itemData($item));
@@ -242,8 +245,15 @@ class ItemController extends Controller
     {
         /** @var array{search?: string|null} $validated */
         $validated = $request->validated();
+        $search = $validated['search'] ?? null;
 
-        return $validated['search'] ?? null;
+        if (! is_string($search)) {
+            return null;
+        }
+
+        $search = trim($search);
+
+        return $search === '' ? null : $search;
     }
 
     /**
