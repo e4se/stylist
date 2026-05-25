@@ -71,6 +71,7 @@ class TagManagementControllerTest extends TestCase
         ]);
         $summerTag = Tag::factory()->for($seasonGroup)->create([
             'name' => 'Summer',
+            'color' => '#f59e0b',
         ]);
         Tag::factory()->for($seasonGroup)->create([
             'name' => 'Winter',
@@ -101,9 +102,12 @@ class TagManagementControllerTest extends TestCase
                 ->whereType('tagGroups.1.tags.0.id', 'string')
                 ->whereType('tagGroups.1.tags.0.tag_group_id', 'string')
                 ->whereType('tagGroups.1.tags.0.name', 'string')
+                ->whereType('tagGroups.1.tags.0.color', 'string')
                 ->where('tagGroups.1.tags.0.id', $summerTag->id)
                 ->where('tagGroups.1.tags.0.tag_group_id', $seasonGroup->id)
-                ->where('tagGroups.1.tags.0.name', 'Summer'),
+                ->where('tagGroups.1.tags.0.name', 'Summer')
+                ->where('tagGroups.1.tags.0.color', '#f59e0b')
+                ->where('tagGroups.1.tags.1.color', null),
             );
     }
 
@@ -167,6 +171,7 @@ class TagManagementControllerTest extends TestCase
             ->actingAs($user)
             ->post(route('wardrobe.tag-groups.tags.store', $tagGroup), [
                 'name' => 'Casual',
+                'color' => '#0f766e',
             ])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('wardrobe.tags.index'));
@@ -174,16 +179,35 @@ class TagManagementControllerTest extends TestCase
         $tag = $tagGroup->tags()->where('name', 'Casual')->sole();
 
         $this->assertSame('Casual', $tag->name);
+        $this->assertSame('#0f766e', $tag->color);
 
         $this
             ->actingAs($user)
             ->patch(route('wardrobe.tag-groups.tags.update', [$tagGroup, $tag]), [
                 'name' => 'Weekend',
+                'color' => '#7c3aed',
             ])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('wardrobe.tags.index'));
 
-        $this->assertSame('Weekend', $tag->refresh()->name);
+        $tag->refresh();
+
+        $this->assertSame('Weekend', $tag->name);
+        $this->assertSame('#7c3aed', $tag->color);
+
+        $this
+            ->actingAs($user)
+            ->patch(route('wardrobe.tag-groups.tags.update', [$tagGroup, $tag]), [
+                'name' => 'Weekend',
+                'color' => null,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('wardrobe.tags.index'));
+
+        $tag->refresh();
+
+        $this->assertSame('Weekend', $tag->name);
+        $this->assertNull($tag->color);
 
         $item->tags()->attach($tag);
 

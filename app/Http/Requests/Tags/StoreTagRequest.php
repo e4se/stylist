@@ -19,6 +19,11 @@ class StoreTagRequest extends FormRequest
     public const int NAME_MAX_CHARACTERS = 255;
 
     /**
+     * Maximum accepted tag color length.
+     */
+    public const int COLOR_MAX_CHARACTERS = 7;
+
+    /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
@@ -48,6 +53,7 @@ class StoreTagRequest extends FormRequest
                     ->where(fn (Builder $query): Builder => $query->where('user_id', $this->user()?->getAuthIdentifier())),
             ],
             'name' => ['required', 'string', 'max:'.self::NAME_MAX_CHARACTERS, $this->uniqueNameRule()],
+            'color' => ['nullable', 'string', 'max:'.self::COLOR_MAX_CHARACTERS, 'hex_color'],
         ];
     }
 
@@ -59,6 +65,7 @@ class StoreTagRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            'color' => (string) __('validation.attributes.tag_color'),
             'name' => (string) __('validation.attributes.tag_name'),
             'tag_group_id' => (string) __('validation.attributes.tag_group_id'),
         ];

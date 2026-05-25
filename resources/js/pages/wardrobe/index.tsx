@@ -49,6 +49,7 @@ type WardrobeTagGroupTag = {
     id: string;
     tag_group_id: string;
     name: string;
+    color: string | null;
 };
 
 type WardrobeTagGroup = {
@@ -60,6 +61,7 @@ type WardrobeTagGroup = {
 type WardrobeItemTag = {
     id: string;
     name: string;
+    color: string | null;
     tag_group: {
         id: string;
         name: string;
@@ -309,9 +311,16 @@ function WardrobeTagFilters({
                                             />
                                             <Label
                                                 htmlFor={checkboxId}
-                                                className="min-w-0 cursor-pointer truncate text-sm font-normal"
+                                                className="flex min-w-0 cursor-pointer items-center gap-1.5 text-sm font-normal"
                                             >
-                                                {tag.name}
+                                                {tag.color && (
+                                                    <TagColorDot
+                                                        color={tag.color}
+                                                    />
+                                                )}
+                                                <span className="min-w-0 truncate">
+                                                    {tag.name}
+                                                </span>
                                             </Label>
                                         </div>
                                     );
@@ -360,6 +369,16 @@ function tagIdListsAreEqual(
     return firstTagIds.every((tagId) => secondTagIdSet.has(tagId));
 }
 
+function TagColorDot({ color }: { color: string }) {
+    return (
+        <span
+            className="size-2.5 shrink-0 rounded-full border border-black/10 dark:border-white/20"
+            style={{ backgroundColor: color }}
+            aria-hidden="true"
+        />
+    );
+}
+
 function WardrobeItemCard({
     item,
     tagGroups,
@@ -405,9 +424,12 @@ function WardrobeItemCard({
                                 key={tag.id}
                                 variant="secondary"
                                 title={`${tag.tag_group.name}: ${tag.name}`}
-                                className="max-w-full rounded-sm px-1.5 py-0 text-xs"
+                                className="max-w-full gap-1.5 rounded-sm px-1.5 py-0 text-xs"
                             >
-                                <span className="truncate">{tag.name}</span>
+                                {tag.color && <TagColorDot color={tag.color} />}
+                                <span className="min-w-0 truncate">
+                                    {tag.name}
+                                </span>
                             </Badge>
                         ))}
                     </div>
@@ -831,9 +853,16 @@ function WardrobeItemTagsField({
                                         />
                                         <Label
                                             htmlFor={checkboxId}
-                                            className="min-w-0 cursor-pointer truncate text-sm font-normal"
+                                            className="flex min-w-0 cursor-pointer items-center gap-1.5 text-sm font-normal"
                                         >
-                                            {tag.name}
+                                            {tag.color && (
+                                                <TagColorDot
+                                                    color={tag.color}
+                                                />
+                                            )}
+                                            <span className="min-w-0 truncate">
+                                                {tag.name}
+                                            </span>
                                         </Label>
                                     </div>
                                 );

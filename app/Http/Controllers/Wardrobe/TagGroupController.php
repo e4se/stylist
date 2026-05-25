@@ -97,7 +97,7 @@ class TagGroupController extends Controller
     /**
      * Format a tag group for the Inertia tag management page.
      *
-     * @return array{id: string, name: string, tags: list<array{id: string, tag_group_id: string, name: string}>}
+     * @return array{id: string, name: string, tags: list<array{id: string, tag_group_id: string, name: string, color: string|null}>}
      */
     private function tagGroupData(TagGroup $tagGroup): array
     {
@@ -114,9 +114,19 @@ class TagGroupController extends Controller
                     'id' => (string) $tag->getKey(),
                     'tag_group_id' => (string) $tag->getAttribute('tag_group_id'),
                     'name' => (string) $tag->getAttribute('name'),
+                    'color' => $this->tagColor($tag),
                 ])
                 ->values()
                 ->all(),
         ];
+    }
+
+    private function tagColor(Tag $tag): ?string
+    {
+        $color = $tag->getAttribute('color');
+
+        assert(is_string($color) || $color === null);
+
+        return $color;
     }
 }

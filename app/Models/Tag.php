@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['tag_group_id', 'name'])]
+#[Fillable(['tag_group_id', 'name', 'color'])]
 class Tag extends Model
 {
     /** @use HasFactory<TagFactory> */

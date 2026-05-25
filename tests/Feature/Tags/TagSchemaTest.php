@@ -22,6 +22,7 @@ class TagSchemaTest extends TestCase
 
         $this->assertTrue(Str::isUuid($tagGroup->id));
         $this->assertTrue(Str::isUuid($tag->id));
+        $this->assertNull($tag->color);
         $this->assertTrue($tagGroup->user()->exists());
         $this->assertTrue($tag->tagGroup()->exists());
         $this->assertTrue($tag->tagGroup->user()->exists());
@@ -36,6 +37,7 @@ class TagSchemaTest extends TestCase
         ]);
         $tag = Tag::factory()->for($tagGroup)->create([
             'name' => 'Formal',
+            'color' => '#0f766e',
         ]);
 
         $item->tags()->attach($tag);
@@ -46,6 +48,7 @@ class TagSchemaTest extends TestCase
         $this->assertTrue(Str::isUuid($tag->id));
         $this->assertSame($user->id, $tagGroup->user_id);
         $this->assertSame($tagGroup->id, $tag->tag_group_id);
+        $this->assertSame('#0f766e', $tag->color);
         $this->assertTrue($tagGroup->user->is($user));
         $this->assertTrue($tag->tagGroup->is($tagGroup));
         $this->assertTrue($user->tagGroups()->whereKey($tagGroup->id)->exists());

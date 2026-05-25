@@ -201,6 +201,16 @@ class TagAuthorizationRequestTest extends TestCase
 
         $this
             ->actingAs($user)
+            ->postTag([
+                'tag_group_id' => $tagGroup->id,
+                'color' => 'blue',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('color')
+            ->assertJsonPath('errors.color.0', 'The tag color field must be a valid hexadecimal color.');
+
+        $this
+            ->actingAs($user)
             ->postTag(['tag_group_id' => $foreignTagGroup->id])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('tag_group_id');
@@ -219,6 +229,7 @@ class TagAuthorizationRequestTest extends TestCase
             ->postTag([
                 'tag_group_id' => $alternateTagGroup->id,
                 'name' => $existingTag->name,
+                'color' => '#0f766e',
             ])
             ->assertNoContent();
 
@@ -226,6 +237,23 @@ class TagAuthorizationRequestTest extends TestCase
             ->actingAs($user)
             ->putTag($editableTag, ['name' => 'Casual'])
             ->assertNoContent();
+
+        $this
+            ->actingAs($user)
+            ->putTag($editableTag, [
+                'name' => 'Casual',
+                'color' => '#7c3aed',
+            ])
+            ->assertNoContent();
+
+        $this
+            ->actingAs($user)
+            ->putTag($editableTag, [
+                'name' => 'Casual',
+                'color' => 'purple',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('color');
 
         $this
             ->actingAs($user)

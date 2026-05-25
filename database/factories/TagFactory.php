@@ -21,6 +21,7 @@ class TagFactory extends Factory
         return [
             'tag_group_id' => TagGroup::factory(),
             'name' => fake()->unique()->word(),
+            'color' => null,
         ];
     }
 }

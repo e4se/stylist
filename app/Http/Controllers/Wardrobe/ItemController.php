@@ -257,7 +257,7 @@ class ItemController extends Controller
     /**
      * Format a wardrobe item for the Inertia index page.
      *
-     * @return array{id: string, name: string, description: string|null, main_upload: list<array{id: string, name: string, url: string}>, tags: list<array{id: string, name: string, tag_group: array{id: string, name: string}}>}
+     * @return array{id: string, name: string, description: string|null, main_upload: list<array{id: string, name: string, url: string}>, tags: list<array{id: string, name: string, color: string|null, tag_group: array{id: string, name: string}}>}
      */
     private function itemData(Item $item): array
     {
@@ -294,7 +294,7 @@ class ItemController extends Controller
     /**
      * Format user tag groups for item forms and filters.
      *
-     * @return list<array{id: string, name: string, tags: list<array{id: string, tag_group_id: string, name: string}>}>
+     * @return list<array{id: string, name: string, tags: list<array{id: string, tag_group_id: string, name: string, color: string|null}>}>
      */
     private function tagGroupsData(User $user): array
     {
@@ -314,7 +314,7 @@ class ItemController extends Controller
     /**
      * Format a tag group for the Inertia wardrobe page.
      *
-     * @return array{id: string, name: string, tags: list<array{id: string, tag_group_id: string, name: string}>}
+     * @return array{id: string, name: string, tags: list<array{id: string, tag_group_id: string, name: string, color: string|null}>}
      */
     private function tagGroupData(TagGroup $tagGroup): array
     {
@@ -331,6 +331,7 @@ class ItemController extends Controller
                     'id' => (string) $tag->getKey(),
                     'tag_group_id' => (string) $tag->getAttribute('tag_group_id'),
                     'name' => (string) $tag->getAttribute('name'),
+                    'color' => $this->tagColor($tag),
                 ])
                 ->values()
                 ->all(),
@@ -340,7 +341,7 @@ class ItemController extends Controller
     /**
      * Format an item tag for the Inertia wardrobe page.
      *
-     * @return array{id: string, name: string, tag_group: array{id: string, name: string}}
+     * @return array{id: string, name: string, color: string|null, tag_group: array{id: string, name: string}}
      */
     private function itemTagData(Tag $tag): array
     {
@@ -351,6 +352,7 @@ class ItemController extends Controller
         return [
             'id' => (string) $tag->getKey(),
             'name' => (string) $tag->getAttribute('name'),
+            'color' => $this->tagColor($tag),
             'tag_group' => [
                 'id' => (string) $tagGroup->getKey(),
                 'name' => (string) $tagGroup->getAttribute('name'),
@@ -370,6 +372,15 @@ class ItemController extends Controller
             mb_strtolower((string) $tag->getAttribute('name')),
             (string) $tag->getKey(),
         );
+    }
+
+    private function tagColor(Tag $tag): ?string
+    {
+        $color = $tag->getAttribute('color');
+
+        assert(is_string($color) || $color === null);
+
+        return $color;
     }
 
     private function cleanupUpload(?Upload $upload): void

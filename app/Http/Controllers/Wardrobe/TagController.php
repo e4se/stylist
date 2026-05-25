@@ -8,6 +8,7 @@ use App\Http\Requests\Tags\UpdateTagRequest;
 use App\Models\Tag;
 use App\Models\TagGroup;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Str;
 
 class TagController extends Controller
 {
@@ -50,15 +51,29 @@ class TagController extends Controller
     /**
      * Get validated tag attributes.
      *
-     * @return array{name: string}
+     * @return array{name: string, color?: string|null}
      */
     private function tagAttributes(StoreTagRequest|UpdateTagRequest $request): array
     {
-        /** @var array{name: string} $validated */
+        /** @var array{name: string, color?: string|null} $validated */
         $validated = $request->validated();
-
-        return [
+        $attributes = [
             'name' => $validated['name'],
         ];
+
+        if ($request instanceof StoreTagRequest || array_key_exists('color', $validated)) {
+            $attributes['color'] = $this->normalizeColor($validated['color'] ?? null);
+        }
+
+        return $attributes;
+    }
+
+    private function normalizeColor(?string $color): ?string
+    {
+        if ($color === null || $color === '') {
+            return null;
+        }
+
+        return Str::lower($color);
     }
 }

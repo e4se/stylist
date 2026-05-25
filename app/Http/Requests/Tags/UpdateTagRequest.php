@@ -17,6 +17,11 @@ class UpdateTagRequest extends FormRequest
     public const int NAME_MAX_CHARACTERS = StoreTagRequest::NAME_MAX_CHARACTERS;
 
     /**
+     * Maximum accepted tag color length.
+     */
+    public const int COLOR_MAX_CHARACTERS = StoreTagRequest::COLOR_MAX_CHARACTERS;
+
+    /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
@@ -35,6 +40,7 @@ class UpdateTagRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:'.self::NAME_MAX_CHARACTERS, $this->uniqueNameRule()],
+            'color' => ['nullable', 'string', 'max:'.self::COLOR_MAX_CHARACTERS, 'hex_color'],
         ];
     }
 
@@ -46,6 +52,7 @@ class UpdateTagRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            'color' => (string) __('validation.attributes.tag_color'),
             'name' => (string) __('validation.attributes.tag_name'),
         ];
     }

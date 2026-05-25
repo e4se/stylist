@@ -51,9 +51,11 @@ class WardrobeItemControllerTest extends TestCase
         ]);
         $blackTag = Tag::factory()->for($colorGroup)->create([
             'name' => 'Black',
+            'color' => '#111827',
         ]);
         $summerTag = Tag::factory()->for($seasonGroup)->create([
             'name' => 'Summer',
+            'color' => '#f59e0b',
         ]);
         $foreignGroup = TagGroup::factory()->for($otherUser)->create([
             'name' => 'Hidden',
@@ -84,10 +86,12 @@ class WardrobeItemControllerTest extends TestCase
                 ->has('items.data.0.tags', 2)
                 ->where('items.data.0.tags.0.id', $blackTag->id)
                 ->where('items.data.0.tags.0.name', 'Black')
+                ->where('items.data.0.tags.0.color', '#111827')
                 ->where('items.data.0.tags.0.tag_group.id', $colorGroup->id)
                 ->where('items.data.0.tags.0.tag_group.name', 'Color')
                 ->where('items.data.0.tags.1.id', $summerTag->id)
                 ->where('items.data.0.tags.1.name', 'Summer')
+                ->where('items.data.0.tags.1.color', '#f59e0b')
                 ->where('items.data.0.tags.1.tag_group.id', $seasonGroup->id)
                 ->where('items.data.0.tags.1.tag_group.name', 'Season')
                 ->has('tagGroups', 2)
@@ -97,12 +101,14 @@ class WardrobeItemControllerTest extends TestCase
                 ->where('tagGroups.0.tags.0.id', $blackTag->id)
                 ->where('tagGroups.0.tags.0.tag_group_id', $colorGroup->id)
                 ->where('tagGroups.0.tags.0.name', 'Black')
+                ->where('tagGroups.0.tags.0.color', '#111827')
                 ->where('tagGroups.1.id', $seasonGroup->id)
                 ->where('tagGroups.1.name', 'Season')
                 ->has('tagGroups.1.tags', 1)
                 ->where('tagGroups.1.tags.0.id', $summerTag->id)
                 ->where('tagGroups.1.tags.0.tag_group_id', $seasonGroup->id)
-                ->where('tagGroups.1.tags.0.name', 'Summer'),
+                ->where('tagGroups.1.tags.0.name', 'Summer')
+                ->where('tagGroups.1.tags.0.color', '#f59e0b'),
             );
     }
 

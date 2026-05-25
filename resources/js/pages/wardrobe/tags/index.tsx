@@ -1,6 +1,6 @@
 import { Form } from '@inertiajs/react';
 import { useLaravelReactI18n } from 'laravel-react-i18n';
-import { Pencil, Plus, Tags, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Tags, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
 import TagController from '@/actions/App/Http/Controllers/Wardrobe/TagController';
@@ -33,6 +33,7 @@ type WardrobeTag = {
     id: string;
     tag_group_id: string;
     name: string;
+    color: string | null;
 };
 
 type WardrobeTagGroup = {
@@ -44,6 +45,13 @@ type WardrobeTagGroup = {
 type NameFormData = {
     name: string;
 };
+
+type TagFormData = {
+    name: string;
+    color: string;
+};
+
+const pickerFallbackColor = '#6b7280';
 
 export default function WardrobeTagsIndex({
     tagGroups,
@@ -156,10 +164,11 @@ function TagRow({
             <div className="min-w-0 flex-1">
                 <Badge
                     variant="secondary"
-                    className="max-w-full shrink rounded-sm px-1.5 py-0 text-xs"
+                    className="max-w-full shrink gap-1.5 rounded-sm px-1.5 py-0 text-xs"
                     title={tag.name}
                 >
-                    <span className="truncate">{tag.name}</span>
+                    {tag.color && <TagColorDot color={tag.color} />}
+                    <span className="min-w-0 truncate">{tag.name}</span>
                 </Badge>
             </div>
 
@@ -168,6 +177,16 @@ function TagRow({
                 <DeleteTagDialog tagGroup={tagGroup} tag={tag} />
             </div>
         </li>
+    );
+}
+
+function TagColorDot({ color }: { color: string }) {
+    return (
+        <span
+            className="size-2.5 shrink-0 rounded-full border border-black/10 dark:border-white/20"
+            style={{ backgroundColor: color }}
+            aria-hidden="true"
+        />
     );
 }
 
@@ -310,11 +329,10 @@ function CreateTagDialog({ tagGroup }: { tagGroup: WardrobeTagGroup }) {
                     </DialogDescription>
                 </DialogHeader>
 
-                <NameForm
+                <TagForm
                     form={TagController.store.form.post(tagGroup.id)}
                     errorBag={`createTag-${tagGroup.id}`}
                     fieldId={`tag-group-${tagGroup.id}-tag-name`}
-                    label={t('Tag name')}
                     placeholder={t('e.g., Linen')}
                     submitLabel={t('Create tag')}
                     processingLabel={t('Creating...')}
@@ -358,16 +376,16 @@ function EditTagDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <NameForm
+                <TagForm
                     form={TagController.update.form.put({
                         tagGroup: tagGroup.id,
                         tag: tag.id,
                     })}
                     errorBag={`updateTag-${tag.id}`}
                     fieldId={`tag-${tag.id}-name`}
-                    label={t('Tag name')}
                     placeholder={t('e.g., Linen')}
                     defaultValue={tag.name}
+                    defaultColor={tag.color}
                     submitLabel={t('Save')}
                     processingLabel={t('Saving...')}
                     onSuccess={() => setOpen(false)}
@@ -483,6 +501,152 @@ function NameForm({
                         />
 
                         <InputError id={errorId} message={errors.name} />
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={processing}
+                                onClick={() => resetAndClearErrors()}
+                            >
+                                {t('Cancel')}
+                            </Button>
+                        </DialogClose>
+
+                        <Button type="submit" disabled={processing}>
+                            {processing ? processingLabel : submitLabel}
+                        </Button>
+                    </DialogFooter>
+                </>
+            )}
+        </Form>
+    );
+}
+
+function TagForm({
+    form,
+    errorBag,
+    fieldId,
+    placeholder,
+    defaultValue = '',
+    defaultColor = null,
+    submitLabel,
+    processingLabel,
+    onSuccess,
+    resetOnSuccess = false,
+}: {
+    form: RouteFormDefinition<'post'>;
+    errorBag: string;
+    fieldId: string;
+    placeholder: string;
+    defaultValue?: string;
+    defaultColor?: string | null;
+    submitLabel: string;
+    processingLabel: string;
+    onSuccess: () => void;
+    resetOnSuccess?: boolean;
+}) {
+    const { t } = useLaravelReactI18n();
+    const nameErrorId = `${fieldId}-error`;
+    const colorFieldId = `${fieldId}-color`;
+    const colorErrorId = `${colorFieldId}-error`;
+    const [selectedColor, setSelectedColor] = useState<string | null>(
+        defaultColor,
+    );
+    const [pickerColor, setPickerColor] = useState(
+        defaultColor ?? pickerFallbackColor,
+    );
+    const clearColor = () => {
+        setSelectedColor(null);
+        setPickerColor(pickerFallbackColor);
+    };
+
+    return (
+        <Form<TagFormData>
+            {...form}
+            errorBag={errorBag}
+            options={{
+                preserveScroll: true,
+            }}
+            onSuccess={() => {
+                if (resetOnSuccess) {
+                    setSelectedColor(null);
+                    setPickerColor(pickerFallbackColor);
+                }
+
+                onSuccess();
+            }}
+            resetOnSuccess={resetOnSuccess}
+            disableWhileProcessing
+            className="space-y-5"
+        >
+            {({ errors, processing, resetAndClearErrors }) => (
+                <>
+                    <div className="grid gap-2">
+                        <Label htmlFor={fieldId}>{t('Tag name')}</Label>
+
+                        <Input
+                            id={fieldId}
+                            type="text"
+                            name="name"
+                            defaultValue={defaultValue}
+                            required
+                            autoFocus
+                            autoComplete="off"
+                            placeholder={placeholder}
+                            disabled={processing}
+                            aria-invalid={Boolean(errors.name)}
+                            aria-describedby={
+                                errors.name ? nameErrorId : undefined
+                            }
+                        />
+
+                        <InputError id={nameErrorId} message={errors.name} />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor={colorFieldId}>{t('Tag color')}</Label>
+
+                        <input
+                            name="color"
+                            type="hidden"
+                            value={selectedColor ?? ''}
+                            readOnly
+                        />
+
+                        <div className="flex items-center gap-2">
+                            <Input
+                                id={colorFieldId}
+                                type="color"
+                                value={pickerColor}
+                                className="h-10 w-14 p-1"
+                                disabled={processing}
+                                aria-invalid={Boolean(errors.color)}
+                                aria-describedby={
+                                    errors.color ? colorErrorId : undefined
+                                }
+                                onChange={(event) => {
+                                    setPickerColor(event.currentTarget.value);
+                                    setSelectedColor(event.currentTarget.value);
+                                }}
+                            />
+
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-9"
+                                disabled={processing || selectedColor === null}
+                                aria-label={t('Clear tag color')}
+                                onClick={clearColor}
+                            >
+                                <X className="size-4" aria-hidden="true" />
+                            </Button>
+                        </div>
+
+                        <InputError id={colorErrorId} message={errors.color} />
                     </div>
 
                     <DialogFooter className="gap-2">

@@ -19,6 +19,7 @@ class TagLocalizationTest extends TestCase
             'Apply filters',
             'Are you sure you want to delete the ":name" tag group? Its tags will be removed from wardrobe items.',
             'Are you sure you want to delete the ":name" tag? It will be removed from wardrobe items.',
+            'Clear tag color',
             'Clear filters',
             'Create group',
             'Create tag',
@@ -36,6 +37,7 @@ class TagLocalizationTest extends TestCase
             'No wardrobe items match these filters',
             'Rename tag',
             'Rename tag group',
+            'Tag color',
             'Tag group name',
             'Tag name',
             'Tags',
@@ -62,6 +64,7 @@ class TagLocalizationTest extends TestCase
         $expectedAttributes = [
             'tag_group_id',
             'tag_group_name',
+            'tag_color',
             'tag_ids',
             'tag_ids.*',
             'tag_name',
