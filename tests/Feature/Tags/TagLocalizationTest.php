@@ -16,6 +16,7 @@ class TagLocalizationTest extends TestCase
             ':count selected',
             'Add tag',
             'Add tag group',
+            'Apply filters',
             'Are you sure you want to delete the ":name" tag group? Its tags will be removed from wardrobe items.',
             'Are you sure you want to delete the ":name" tag? It will be removed from wardrobe items.',
             'Clear filters',

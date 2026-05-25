@@ -12,7 +12,7 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useState } from 'react';
 
 import UploadController from '@/actions/App/Http/Controllers/UploadController';
@@ -120,6 +120,10 @@ export default function WardrobeIndex({
 }) {
     const { t } = useLaravelReactI18n();
     const isFiltered = filters.tag_ids.length > 0;
+    const hasTagFilters = tagGroups.some(
+        (tagGroup) => tagGroup.tags.length > 0,
+    );
+    const tagFilterKey = filters.tag_ids.join('|');
 
     return (
         <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
@@ -129,30 +133,46 @@ export default function WardrobeIndex({
                 <CreateWardrobeItemDialog tagGroups={tagGroups} />
             </div>
 
-            <WardrobeTagFilters tagGroups={tagGroups} filters={filters} />
-
-            {items.data.length === 0 ? (
-                <WardrobeEmptyState isFiltered={isFiltered} />
-            ) : (
-                <InfiniteScroll
-                    data="items"
-                    onlyNext
-                    className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
-                    loading={() => (
-                        <WardrobeGridLoading
-                            label={t('Loading wardrobe items')}
-                        />
+            <div
+                className={cn(
+                    'grid flex-1 gap-4',
+                    hasTagFilters &&
+                        'lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]',
+                )}
+            >
+                <main className="min-w-0">
+                    {items.data.length === 0 ? (
+                        <WardrobeEmptyState isFiltered={isFiltered} />
+                    ) : (
+                        <InfiniteScroll
+                            data="items"
+                            onlyNext
+                            className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
+                            loading={() => (
+                                <WardrobeGridLoading
+                                    label={t('Loading wardrobe items')}
+                                />
+                            )}
+                        >
+                            {items.data.map((item) => (
+                                <WardrobeItemCard
+                                    key={item.id}
+                                    item={item}
+                                    tagGroups={tagGroups}
+                                />
+                            ))}
+                        </InfiniteScroll>
                     )}
-                >
-                    {items.data.map((item) => (
-                        <WardrobeItemCard
-                            key={item.id}
-                            item={item}
-                            tagGroups={tagGroups}
-                        />
-                    ))}
-                </InfiniteScroll>
-            )}
+                </main>
+
+                {hasTagFilters && (
+                    <WardrobeTagFilters
+                        key={tagFilterKey}
+                        tagGroups={tagGroups}
+                        filters={filters}
+                    />
+                )}
+            </div>
         </div>
     );
 }
@@ -169,20 +189,21 @@ function WardrobeTagFilters({
         (tagGroup) => tagGroup.tags.length > 0,
     );
     const selectedTagIds = filters.tag_ids;
-    const selectedTagIdSet = new Set(selectedTagIds);
+    const [pendingTagIds, setPendingTagIds] =
+        useState<string[]>(selectedTagIds);
+    const pendingTagIdSet = new Set(pendingTagIds);
 
     if (selectableTagGroups.length === 0) {
         return null;
     }
 
     const visitTagFilters = (tagIds: string[]) => {
-        router.get(
-            ItemController.index.url({
+        router.visit(
+            ItemController.index.get({
                 query: {
                     tag_ids: tagIds,
                 },
             }),
-            {},
             {
                 only: ['items', 'filters'],
                 preserveScroll: true,
@@ -192,28 +213,46 @@ function WardrobeTagFilters({
         );
     };
     const handleTagCheckedChange = (tagId: string, checked: boolean) => {
-        let nextTagIds = selectedTagIds;
+        setPendingTagIds((currentTagIds) => {
+            if (checked) {
+                return currentTagIds.includes(tagId)
+                    ? currentTagIds
+                    : [...currentTagIds, tagId];
+            }
 
-        if (checked && !selectedTagIds.includes(tagId)) {
-            nextTagIds = [...selectedTagIds, tagId];
-        }
-
-        if (!checked) {
-            nextTagIds = selectedTagIds.filter(
-                (selectedTagId) => selectedTagId !== tagId,
+            return currentTagIds.filter(
+                (currentTagId) => currentTagId !== tagId,
             );
-        }
-
-        visitTagFilters(nextTagIds);
+        });
     };
-    const isFiltering = selectedTagIds.length > 0;
+    const handleApplyFilters = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        visitTagFilters(pendingTagIds);
+    };
+    const handleClearFilters = () => {
+        setPendingTagIds([]);
+
+        if (selectedTagIds.length > 0) {
+            visitTagFilters([]);
+        }
+    };
+    const hasSelectedFilters = pendingTagIds.length > 0;
+    const hasActiveFilters = selectedTagIds.length > 0;
+    const hasPendingChanges = !tagIdListsAreEqual(
+        selectedTagIds,
+        pendingTagIds,
+    );
 
     return (
-        <section
+        <aside
             aria-labelledby="wardrobe-tag-filters-title"
-            className="space-y-4 rounded-md border border-sidebar-border/70 bg-background p-4 shadow-xs dark:border-sidebar-border"
+            className="order-first min-w-0 lg:order-last"
         >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <form
+                onSubmit={handleApplyFilters}
+                className="space-y-4 rounded-md border border-sidebar-border/70 bg-background p-4 lg:sticky lg:top-4 dark:border-sidebar-border"
+            >
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
                         <Filter className="size-4" aria-hidden="true" />
@@ -225,74 +264,100 @@ function WardrobeTagFilters({
                         {t('Filter by tags')}
                     </h2>
 
-                    {isFiltering && (
+                    {hasSelectedFilters && (
                         <Badge
                             variant="secondary"
                             className="rounded-sm px-1.5 py-0 text-xs"
                         >
                             {t(':count selected', {
-                                count: selectedTagIds.length,
+                                count: pendingTagIds.length,
                             })}
                         </Badge>
                     )}
                 </div>
 
-                {isFiltering && (
+                <div className="grid gap-4">
+                    {selectableTagGroups.map((tagGroup) => (
+                        <fieldset
+                            key={tagGroup.id}
+                            className="min-w-0 space-y-2"
+                        >
+                            <legend className="text-sm font-medium text-muted-foreground">
+                                {tagGroup.name}
+                            </legend>
+
+                            <div className="grid gap-2">
+                                {tagGroup.tags.map((tag) => {
+                                    const checkboxId = `wardrobe-filter-tag-${tag.id}`;
+
+                                    return (
+                                        <div
+                                            key={tag.id}
+                                            className="flex min-w-0 items-center gap-2"
+                                        >
+                                            <Checkbox
+                                                id={checkboxId}
+                                                checked={pendingTagIdSet.has(
+                                                    tag.id,
+                                                )}
+                                                onCheckedChange={(checked) =>
+                                                    handleTagCheckedChange(
+                                                        tag.id,
+                                                        checked === true,
+                                                    )
+                                                }
+                                            />
+                                            <Label
+                                                htmlFor={checkboxId}
+                                                className="min-w-0 cursor-pointer truncate text-sm font-normal"
+                                            >
+                                                {tag.name}
+                                            </Label>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </fieldset>
+                    ))}
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+                    <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={!hasPendingChanges}
+                    >
+                        <Filter className="size-4" aria-hidden="true" />
+                        {t('Apply filters')}
+                    </Button>
+
                     <Button
                         type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => visitTagFilters([])}
+                        variant="outline"
+                        className="w-full"
+                        disabled={!hasSelectedFilters && !hasActiveFilters}
+                        onClick={handleClearFilters}
                     >
                         <X className="size-4" aria-hidden="true" />
                         {t('Clear filters')}
                     </Button>
-                )}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {selectableTagGroups.map((tagGroup) => (
-                    <fieldset key={tagGroup.id} className="min-w-0 space-y-2">
-                        <legend className="text-sm font-medium text-muted-foreground">
-                            {tagGroup.name}
-                        </legend>
-
-                        <div className="grid gap-2">
-                            {tagGroup.tags.map((tag) => {
-                                const checkboxId = `wardrobe-filter-tag-${tag.id}`;
-
-                                return (
-                                    <div
-                                        key={tag.id}
-                                        className="flex min-w-0 items-center gap-2"
-                                    >
-                                        <Checkbox
-                                            id={checkboxId}
-                                            checked={selectedTagIdSet.has(
-                                                tag.id,
-                                            )}
-                                            onCheckedChange={(checked) =>
-                                                handleTagCheckedChange(
-                                                    tag.id,
-                                                    checked === true,
-                                                )
-                                            }
-                                        />
-                                        <Label
-                                            htmlFor={checkboxId}
-                                            className="min-w-0 cursor-pointer truncate text-sm font-normal"
-                                        >
-                                            {tag.name}
-                                        </Label>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </fieldset>
-                ))}
-            </div>
-        </section>
+                </div>
+            </form>
+        </aside>
     );
+}
+
+function tagIdListsAreEqual(
+    firstTagIds: string[],
+    secondTagIds: string[],
+): boolean {
+    if (firstTagIds.length !== secondTagIds.length) {
+        return false;
+    }
+
+    const secondTagIdSet = new Set(secondTagIds);
+
+    return firstTagIds.every((tagId) => secondTagIdSet.has(tagId));
 }
 
 function WardrobeItemCard({
