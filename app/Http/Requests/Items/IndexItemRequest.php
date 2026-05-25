@@ -26,6 +26,9 @@ class IndexItemRequest extends FormRequest
      */
     public function rules(): array
     {
-        return $this->itemTagRules($this->user());
+        return [
+            ...$this->itemTagRules($this->user()),
+            'search' => ['nullable', 'string', 'max:200'],
+        ];
     }
 }

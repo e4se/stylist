@@ -89,6 +89,7 @@ class WardrobeItemControllerTest extends TestCase
                 ->component('wardrobe/index')
                 ->has('items.data', 1)
                 ->has('filters.tag_ids', 0)
+                ->where('filters.search', null)
                 ->where('items.data.0.id', $item->id)
                 ->where('items.data.0.name', 'Linen shirt')
                 ->where('items.data.0.description', 'Lightweight summer layer.')

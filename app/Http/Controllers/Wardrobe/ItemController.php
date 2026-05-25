@@ -44,6 +44,7 @@ class ItemController extends Controller
         $user = $request->user();
         $query = $user->items()->with(['mainUpload', 'tags.tagGroup']);
         $tagIds = $this->validatedTagIds($request);
+        $search = $this->validatedSearch($request);
 
         foreach ($this->validatedTagIdsByGroup($tagIds, $user) as $groupTagIds) {
             $query->whereHas('tags', fn (Builder $tagQuery): Builder => $tagQuery->whereKey($groupTagIds));
@@ -60,6 +61,7 @@ class ItemController extends Controller
             'tagGroups' => $this->tagGroupsData($user),
             'filters' => [
                 'tag_ids' => $tagIds,
+                'search' => $search,
             ],
         ]);
     }
@@ -234,6 +236,14 @@ class ItemController extends Controller
         }
 
         return array_values($tagIds);
+    }
+
+    private function validatedSearch(IndexItemRequest $request): ?string
+    {
+        /** @var array{search?: string|null} $validated */
+        $validated = $request->validated();
+
+        return $validated['search'] ?? null;
     }
 
     /**

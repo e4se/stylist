@@ -82,6 +82,7 @@ type PaginatedWardrobeItems = {
 
 type WardrobeFilters = {
     tag_ids: string[];
+    search: string | null;
 };
 
 type WardrobeItemFormData = {
@@ -121,7 +122,7 @@ export default function WardrobeIndex({
     filters: WardrobeFilters;
 }) {
     const { t } = useLaravelReactI18n();
-    const isFiltered = filters.tag_ids.length > 0;
+    const isFiltered = filters.tag_ids.length > 0 || Boolean(filters.search);
     const hasTagFilters = tagGroups.some(
         (tagGroup) => tagGroup.tags.length > 0,
     );

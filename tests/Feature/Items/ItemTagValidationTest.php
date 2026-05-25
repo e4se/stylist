@@ -262,6 +262,50 @@ class ItemTagValidationTest extends TestCase
             ->assertJsonValidationErrors('tag_ids.0');
     }
 
+    public function test_index_accepts_search_filter_and_exposes_it_in_filters_prop(): void
+    {
+        $user = User::factory()->create();
+        $tagGroup = TagGroup::factory()->for($user)->create();
+        $tag = Tag::factory()->for($tagGroup)->create();
+        $item = Item::factory()->for($user)->create([
+            'name' => 'Linen blazer',
+        ]);
+
+        $item->tags()->attach($tag);
+
+        $this
+            ->actingAs($user)
+            ->get(route('wardrobe.index', [
+                'tag_ids' => [$tag->id],
+                'search' => 'linen blazer',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('wardrobe/index')
+                ->where('filters.search', 'linen blazer')
+                ->has('filters.tag_ids', 1)
+                ->where('filters.tag_ids.0', $tag->id)
+                ->where('items.data.0.id', $item->id),
+            );
+    }
+
+    public function test_index_rejects_invalid_search_filters(): void
+    {
+        $user = User::factory()->create();
+
+        $this
+            ->actingAs($user)
+            ->getJson(route('wardrobe.index', ['search' => ['linen']]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('search');
+
+        $this
+            ->actingAs($user)
+            ->getJson(route('wardrobe.index', ['search' => str_repeat('a', 201)]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('search');
+    }
+
     public function test_index_pagination_links_keep_active_tag_filters(): void
     {
         $user = User::factory()->create();
