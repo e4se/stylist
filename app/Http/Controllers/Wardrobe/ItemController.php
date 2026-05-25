@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Wardrobe;
 use App\Actions\Uploads\StoreUpload;
 use App\Enums\ItemUploadType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Items\IndexItemRequest;
 use App\Http\Requests\Items\StoreItemRequest;
 use App\Http\Requests\Items\UpdateItemRequest;
 use App\Models\Item;
@@ -12,7 +13,6 @@ use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -27,14 +27,20 @@ class ItemController extends Controller
     /**
      * Show the authenticated user's wardrobe items.
      */
-    public function index(Request $request): Response
+    public function index(IndexItemRequest $request): Response
     {
         $this->authorize('viewAny', Item::class);
 
         /** @var User $user */
         $user = $request->user();
-        $items = $user->items()
-            ->with('mainUpload')
+        $query = $user->items()->with('mainUpload');
+        $tagIds = $this->validatedTagIds($request);
+
+        if ($tagIds !== []) {
+            $query->whereHas('tags', fn ($tagQuery) => $tagQuery->whereKey($tagIds));
+        }
+
+        $items = $query
             ->latest()
             ->paginate(12)
             ->through(fn (Item $item): array => $this->itemData($item));
@@ -58,6 +64,8 @@ class ItemController extends Controller
         try {
             DB::transaction(function () use ($request, $user, &$storedUpload): void {
                 $item = $user->items()->create($this->itemAttributes($request));
+                $this->syncTags($item, $request);
+
                 $mainUpload = $this->mainUpload($request, $user, $storedUpload);
 
                 if ($mainUpload instanceof Upload) {
@@ -87,6 +95,8 @@ class ItemController extends Controller
         try {
             DB::transaction(function () use ($request, $item, $user, &$storedUpload): void {
                 $item->update($this->itemAttributes($request));
+                $this->syncTags($item, $request);
+
                 $mainUpload = $this->mainUpload($request, $user, $storedUpload);
 
                 if ($mainUpload instanceof Upload) {
@@ -176,6 +186,34 @@ class ItemController extends Controller
             [(string) $upload->getKey()],
             ['type' => ItemUploadType::Main->value],
         );
+    }
+
+    private function syncTags(Item $item, StoreItemRequest|UpdateItemRequest $request): void
+    {
+        /** @var array{tag_ids?: array<int|string, string>|null} $validated */
+        $validated = $request->validated();
+
+        if (! array_key_exists('tag_ids', $validated)) {
+            return;
+        }
+
+        $item->tags()->sync($this->validatedTagIds($request));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function validatedTagIds(IndexItemRequest|StoreItemRequest|UpdateItemRequest $request): array
+    {
+        /** @var array{tag_ids?: array<int|string, string>|null} $validated */
+        $validated = $request->validated();
+        $tagIds = $validated['tag_ids'] ?? null;
+
+        if (! is_array($tagIds)) {
+            return [];
+        }
+
+        return array_values($tagIds);
     }
 
     /**
