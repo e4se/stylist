@@ -15,6 +15,18 @@ class TagSchemaTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_tag_factories_create_uuid_backed_records_with_default_relationships(): void
+    {
+        $tagGroup = TagGroup::factory()->create();
+        $tag = Tag::factory()->create();
+
+        $this->assertTrue(Str::isUuid($tagGroup->id));
+        $this->assertTrue(Str::isUuid($tag->id));
+        $this->assertTrue($tagGroup->user()->exists());
+        $this->assertTrue($tag->tagGroup()->exists());
+        $this->assertTrue($tag->tagGroup->user()->exists());
+    }
+
     public function test_tag_groups_tags_and_item_assignments_are_persisted_with_relations(): void
     {
         $user = User::factory()->create();

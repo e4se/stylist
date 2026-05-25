@@ -56,7 +56,24 @@ class BreadcrumbsTest extends TestCase
             );
     }
 
-    public function test_wardrobe_tags_share_nested_route_bound_breadcrumbs(): void
+    public function test_wardrobe_tags_share_nested_route_bound_breadcrumbs_in_english(): void
+    {
+        $user = User::factory()->create();
+
+        $this
+            ->actingAs($user)
+            ->get(route('wardrobe.tags.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('breadcrumbs.0.title', 'Wardrobe')
+                ->where('breadcrumbs.0.url', route('wardrobe.index'))
+                ->where('breadcrumbs.1.title', 'Tags')
+                ->where('breadcrumbs.1.url', route('wardrobe.tags.index'))
+                ->where('breadcrumbs.1.current', true),
+            );
+    }
+
+    public function test_wardrobe_tags_share_nested_route_bound_breadcrumbs_in_russian(): void
     {
         $user = User::factory()->create(['locale' => 'ru']);
 

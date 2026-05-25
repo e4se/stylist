@@ -72,7 +72,7 @@ class ItemTagValidationTest extends TestCase
             ->patch(route('wardrobe.items.update', $item), [
                 'name' => 'Updated jacket',
                 'description' => 'Updated description.',
-                'tag_ids' => null,
+                'tag_ids' => [],
             ])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('wardrobe.index'));
@@ -214,6 +214,7 @@ class ItemTagValidationTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('wardrobe/index')
+                ->has('filters.tag_ids', 2)
                 ->where('filters.tag_ids.0', $blackTag->id)
                 ->where('filters.tag_ids.1', $whiteTag->id)
                 ->where(
@@ -232,6 +233,7 @@ class ItemTagValidationTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('wardrobe/index')
+                ->has('filters.tag_ids', 3)
                 ->where('filters.tag_ids.0', $blackTag->id)
                 ->where('filters.tag_ids.1', $whiteTag->id)
                 ->where('filters.tag_ids.2', $summerTag->id)

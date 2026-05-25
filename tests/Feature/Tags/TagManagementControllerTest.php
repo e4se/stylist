@@ -200,6 +200,68 @@ class TagManagementControllerTest extends TestCase
         ]);
     }
 
+    public function test_tag_group_and_tag_mutations_enforce_scoped_unique_names(): void
+    {
+        $user = User::factory()->create();
+        $tagGroup = TagGroup::factory()->for($user)->create([
+            'name' => 'Season',
+        ]);
+        $editableTagGroup = TagGroup::factory()->for($user)->create([
+            'name' => 'Style',
+        ]);
+        $tag = Tag::factory()->for($tagGroup)->create([
+            'name' => 'Formal',
+        ]);
+        $editableTag = Tag::factory()->for($tagGroup)->create([
+            'name' => 'Casual',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->from(route('wardrobe.tags.index'))
+            ->post(route('wardrobe.tag-groups.store'), [
+                'name' => 'Season',
+            ])
+            ->assertRedirect(route('wardrobe.tags.index'))
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame(1, $user->tagGroups()->where('name', 'Season')->count());
+
+        $this
+            ->actingAs($user)
+            ->from(route('wardrobe.tags.index'))
+            ->patch(route('wardrobe.tag-groups.update', $editableTagGroup), [
+                'name' => 'Season',
+            ])
+            ->assertRedirect(route('wardrobe.tags.index'))
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame('Style', $editableTagGroup->refresh()->name);
+
+        $this
+            ->actingAs($user)
+            ->from(route('wardrobe.tags.index'))
+            ->post(route('wardrobe.tag-groups.tags.store', $tagGroup), [
+                'name' => 'Formal',
+            ])
+            ->assertRedirect(route('wardrobe.tags.index'))
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame(1, $tagGroup->tags()->where('name', 'Formal')->count());
+
+        $this
+            ->actingAs($user)
+            ->from(route('wardrobe.tags.index'))
+            ->patch(route('wardrobe.tag-groups.tags.update', [$tagGroup, $editableTag]), [
+                'name' => 'Formal',
+            ])
+            ->assertRedirect(route('wardrobe.tags.index'))
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame('Casual', $editableTag->refresh()->name);
+        $this->assertSame('Formal', $tag->refresh()->name);
+    }
+
     public function test_mutations_do_not_expose_or_change_another_users_tag_records(): void
     {
         $user = User::factory()->create();
