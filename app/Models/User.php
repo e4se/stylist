@@ -61,6 +61,16 @@ class User extends Authenticatable implements HasLocalePreference, PasskeyUser
     }
 
     /**
+     * Get the user's tag groups.
+     *
+     * @return HasMany<TagGroup, $this>
+     */
+    public function tagGroups(): HasMany
+    {
+        return $this->hasMany(TagGroup::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
